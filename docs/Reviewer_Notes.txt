@@ -1,0 +1,98 @@
+App Store Review — Reviewer Notes
+===================================
+
+Application: [Your App Name]
+Version: 1.0.0
+Build: 1
+
+TEST CREDENTIALS
+----------------
+Email:    reviewer@test.com
+Password: Reviewer123!
+
+(These credentials are pre-created in the sandbox environment.
+Register with the above email via the app if they don't exist yet.)
+
+
+GUIDELINE COMPLIANCE SUMMARY
+-----------------------------
+
+1. NATIVE UTILITY (Guideline 4.2)
+   - This is a native app built with React Native (Expo SDK 54), NOT a web wrapper.
+   - Native features integrated:
+     * Haptic feedback (expo-haptics) on all key interactions (login, errors, tab switches)
+     * Biometric authentication (Face ID / Touch ID) via expo-local-authentication for secure session resumption (Settings > Security)
+     * Secure token storage using expo-secure-store (hardware-backed encryption)
+     * Native bottom tab bar navigation (Home, Settings)
+
+2. SIGN IN WITH APPLE (Guideline 4.8)
+   - Sign in with Apple is available on the login screen with equal visual prominence to email/password login.
+   - Implementation: expo-apple-authentication
+   - Apple user accounts are created server-side when a new Apple ID signs in.
+
+3. USER-GENERATED CONTENT SAFETY (Guideline 1.2)
+   - Every piece of user-generated content includes a "Report" button.
+   - Report flow: User taps Report → selects reason → submits to backend → reviewed within 24 hours.
+   - Block function: Users can block other users. Blocked content is immediately hidden client-side.
+   - Content filtering: Server-side regex-based filter for prohibited content. (Augment with Perspective API for production.)
+   - Admin moderation panel: GET /api/admin/moderation/reports (lists all pending reports)
+   - Moderation SLA: All reports are processed within 24 hours via the admin endpoint.
+   - Admin moderation endpoint: PUT /api/admin/moderation/reports/:id
+
+4. MONETIZATION (Guideline 3.1)
+   - All digital purchases use RevenueCat (StoreKit integration).
+   - "Restore Purchases" button is present in Settings > Purchases.
+   - No external payment links or "sign up on our website" text anywhere in the app.
+   - RevenueCat webhook handler processes: INITIAL_PURCHASE, RENEWAL, CANCELLATION, EXPIRATION.
+
+5. ACCOUNT DELETION (Guideline 5.1.1)
+   - "Delete Account" button is in Settings > Danger Zone.
+   - Requires password confirmation before deletion.
+   - Server-side data scrub: removes all tokens, subscriptions, reports, blocks, and soft-deletes the user record.
+   - Complies with Apple's requirement for full data erasure upon account deletion.
+
+6. PRIVACY
+   - No third-party analytics or tracking SDKs.
+   - All authentication tokens are stored in secure hardware-backed storage (expo-secure-store).
+   - Refresh tokens are stored as SHA-256 hashes in the database (even a DB breach doesn't compromise sessions).
+   - JWT access tokens expire after 15 minutes.
+   - All API communication uses HTTPS in production.
+
+7. APP COMPLETENESS
+   - No placeholder text ("Lorem Ipsum", "Coming Soon") anywhere in the UI.
+   - All screens are fully functional.
+   - Error states are properly handled with user-friendly messages.
+
+
+TECHNICAL ARCHITECTURE
+----------------------
+- Backend: GoLang (Go-Fiber v2) with PostgreSQL (GORM ORM)
+- Frontend: React Native (Expo SDK 54) with Expo Router and NativeWind (Tailwind CSS)
+- Authentication: JWT (access + refresh token rotation)
+- In-App Purchases: RevenueCat webhook integration
+
+
+API ENDPOINTS
+-------------
+Public:
+  POST /api/auth/register     — Create account
+  POST /api/auth/login        — Sign in with email/password
+  POST /api/auth/refresh      — Refresh access token
+  POST /api/auth/apple        — Sign in with Apple
+
+Protected (requires Bearer token):
+  POST   /api/auth/logout     — Sign out
+  DELETE /api/auth/account    — Delete account + data scrub
+  POST   /api/reports         — Report content
+  POST   /api/blocks          — Block user
+  DELETE /api/blocks/:id      — Unblock user
+
+Admin:
+  GET  /api/admin/moderation/reports     — List reports
+  PUT  /api/admin/moderation/reports/:id — Action a report
+
+Webhooks:
+  POST /api/webhooks/revenuecat — RevenueCat subscription events
+
+Health:
+  GET /api/health — Server + DB health check

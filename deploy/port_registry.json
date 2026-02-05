@@ -1,0 +1,26 @@
+{
+  "description": "Port allocation registry for autonomous app deployments",
+  "base_port": 10000,
+  "port_increment": 10,
+  "apps": [
+    {
+      "name": "EcoMonitor-AI",
+      "port": 8081,
+      "status": "deployed",
+      "coolify_app_uuid": "u4ksccssw8ow4cogckkwgk8c",
+      "coolify_db_uuid": "to0o48co4occowcsccscwws4",
+      "github_repo": "ahmetk3436/EcoMonitor-AI",
+      "deployed_at": "2026-02-05T04:30:00Z"
+    },
+    {
+      "name": "VetAI",
+      "port": 10000,
+      "status": "pending",
+      "coolify_app_uuid": null,
+      "coolify_db_uuid": null,
+      "github_repo": null,
+      "deployed_at": null
+    }
+  ],
+  "next_available_port": 10010
+}

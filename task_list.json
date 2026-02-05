@@ -1,0 +1,95 @@
+{
+  "tasks": [
+    {
+      "id": "task_001",
+      "title": "Backend - AuraReading Model & CRUD",
+      "status": "completed",
+      "priority": 10,
+      "depends_on": [],
+      "test_command": "cd /Users/ahmetcoskunkizilkaya/Desktop/AuraSnap/backend && go build ./...",
+      "created_at": "2026-02-05T21:00:00Z",
+      "updated_at": "2026-02-05T21:30:00Z"
+    },
+    {
+      "id": "task_002",
+      "title": "Backend - AuraMatch Compatibility Model",
+      "status": "completed",
+      "priority": 9,
+      "depends_on": ["task_001"],
+      "test_command": "cd /Users/ahmetcoskunkizilkaya/Desktop/AuraSnap/backend && go build ./...",
+      "created_at": "2026-02-05T21:00:00Z",
+      "updated_at": "2026-02-05T21:30:00Z"
+    },
+    {
+      "id": "task_003",
+      "title": "Backend - Daily Streak & Gamification",
+      "status": "completed",
+      "priority": 8,
+      "depends_on": ["task_001"],
+      "test_command": "cd /Users/ahmetcoskunkizilkaya/Desktop/AuraSnap/backend && go build ./...",
+      "created_at": "2026-02-05T21:00:00Z",
+      "updated_at": "2026-02-05T21:30:00Z"
+    },
+    {
+      "id": "task_004",
+      "title": "Mobile - Home Screen & Aura Scanner",
+      "status": "completed",
+      "priority": 10,
+      "depends_on": ["task_001"],
+      "test_command": "cd /Users/ahmetcoskunkizilkaya/Desktop/AuraSnap/mobile && npx tsc --noEmit",
+      "created_at": "2026-02-05T21:00:00Z",
+      "updated_at": "2026-02-05T21:30:00Z"
+    },
+    {
+      "id": "task_005",
+      "title": "Mobile - Aura Results Screen",
+      "status": "completed",
+      "priority": 9,
+      "depends_on": ["task_004"],
+      "test_command": "cd /Users/ahmetcoskunkizilkaya/Desktop/AuraSnap/mobile && npx tsc --noEmit",
+      "created_at": "2026-02-05T21:00:00Z",
+      "updated_at": "2026-02-05T21:30:00Z"
+    },
+    {
+      "id": "task_006",
+      "title": "Mobile - Aura History Tab",
+      "status": "completed",
+      "priority": 8,
+      "depends_on": ["task_004", "task_005"],
+      "test_command": "cd /Users/ahmetcoskunkizilkaya/Desktop/AuraSnap/mobile && npx tsc --noEmit",
+      "created_at": "2026-02-05T21:00:00Z",
+      "updated_at": "2026-02-05T21:30:00Z"
+    },
+    {
+      "id": "task_007",
+      "title": "Mobile - Friend Match Screen",
+      "status": "completed",
+      "priority": 7,
+      "depends_on": ["task_002", "task_005"],
+      "test_command": "cd /Users/ahmetcoskunkizilkaya/Desktop/AuraSnap/mobile && npx tsc --noEmit",
+      "created_at": "2026-02-05T21:00:00Z",
+      "updated_at": "2026-02-05T21:30:00Z"
+    },
+    {
+      "id": "task_008",
+      "title": "Mobile - Profile & Settings with Streak",
+      "status": "completed",
+      "priority": 7,
+      "depends_on": ["task_003", "task_004"],
+      "test_command": "cd /Users/ahmetcoskunkizilkaya/Desktop/AuraSnap/mobile && npx tsc --noEmit",
+      "created_at": "2026-02-05T21:00:00Z",
+      "updated_at": "2026-02-05T21:30:00Z"
+    },
+    {
+      "id": "task_009",
+      "title": "Deploy - Git Push & Coolify",
+      "status": "in_progress",
+      "priority": 1,
+      "depends_on": ["task_001", "task_002", "task_003", "task_004", "task_005", "task_006", "task_007", "task_008"],
+      "test_command": "cd /Users/ahmetcoskunkizilkaya/Desktop/AuraSnap && git status",
+      "is_deployment": true,
+      "created_at": "2026-02-05T21:00:00Z",
+      "updated_at": "2026-02-05T21:35:00Z"
+    }
+  ]
+}
