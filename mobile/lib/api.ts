@@ -14,7 +14,7 @@ const API_BASE_URL =
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 15000,
+  timeout: 30000, // Increased from 15000 to 30000 for OpenAI Vision API processing
   headers: { 'Content-Type': 'application/json' },
 });
 
