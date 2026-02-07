@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, Pressable, ScrollView, Switch, Alert, Share, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -18,6 +18,15 @@ export default function SettingsScreen() {
   const [biometricEnabled, setBiometricEnabled] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
+
+  // Load biometric preference on mount
+  useEffect(() => {
+    const loadBiometric = async () => {
+      const saved = await AsyncStorage.getItem('biometric_enabled');
+      if (saved === 'true') setBiometricEnabled(true);
+    };
+    loadBiometric();
+  }, []);
 
   const toggleBiometric = async (newValue: boolean) => {
     hapticSelection();
@@ -110,10 +119,21 @@ export default function SettingsScreen() {
     <SafeAreaView className="flex-1 bg-gray-950" edges={['top']}>
       <ScrollView className="flex-1 px-6 pt-4" showsVerticalScrollIndicator={false}>
         {/* Header */}
-        <Text className="text-2xl font-bold text-white mb-1">Settings</Text>
-        <Text className="text-sm text-gray-400 mb-6">
-          {isGuest ? 'Guest Mode' : user?.email}
-        </Text>
+        <View className="flex-row items-center justify-between mb-6">
+          <View>
+            <Text className="text-2xl font-bold text-white mb-1">Settings</Text>
+            <Text className="text-sm text-gray-400">
+              {isGuest ? 'Guest Mode' : user?.email}
+            </Text>
+          </View>
+          {/* Premium Badge */}
+          {isSubscribed && isAuthenticated && (
+            <View className="flex-row items-center bg-violet-600/20 rounded-full px-3 py-1.5">
+              <Ionicons name="sparkles" size={14} color="#a78bfa" />
+              <Text className="text-violet-400 text-xs font-semibold ml-1">Premium</Text>
+            </View>
+          )}
+        </View>
 
         {/* Guest Upgrade Card */}
         {isGuest && (

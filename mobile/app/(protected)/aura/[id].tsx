@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, Pressable, Dimensions, StyleSheet, Share } from 'react-native';
+import { View, Text, Pressable, ScrollView, Share, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,267 +10,392 @@ import Animated, {
   withDelay,
   withSpring,
   Easing,
-  interpolateColor,
   interpolate,
 } from 'react-native-reanimated';
-import { LinearGradient } from 'expo-linear-gradient';
 import api from '../../../lib/api';
 import { hapticMedium, hapticSuccess, hapticSelection } from '../../../lib/haptics';
+import { colorMap } from '../../../utils/constants';
 
-const PRIMARY_COLOR = '#7C3AED';
+const AURA_COLORS: Record<string, { hex: string; emoji: string }> = {
+  'Red': { hex: '#dc2626', emoji: '' },
+  'Orange': { hex: '#ea580c', emoji: '' },
+  'Yellow': { hex: '#eab308', emoji: '' },
+  'Green': { hex: '#16a34a', emoji: '' },
+  'Blue': { hex: '#2563eb', emoji: '' },
+  'Indigo': { hex: '#4f46e5', emoji: '' },
+  'Violet': { hex: '#7c3aed', emoji: '' },
+  'Pink': { hex: '#ec4899', emoji: '' },
+  'Turquoise': { hex: '#06b6d4', emoji: '' },
+  'Gold': { hex: '#f59e0b', emoji: '' },
+};
+
+function getColorHex(colorName: string): string {
+  for (const [key, val] of Object.entries(AURA_COLORS)) {
+    if (colorName?.toLowerCase().includes(key.toLowerCase())) return val.hex;
+  }
+  // fallback to colorMap
+  const mapped = colorMap[colorName as keyof typeof colorMap];
+  if (mapped) return mapped;
+  return '#7c3aed';
+}
+
+interface AuraData {
+  id: string;
+  aura_color: string;
+  secondary_color?: string;
+  energy_level: number;
+  mood_score: number;
+  personality: string;
+  strengths: string[];
+  challenges: string[];
+  daily_advice: string;
+  analyzed_at: string;
+  created_at: string;
+}
 
 export default function AuraResultScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
 
-  // Data from params/API
-  const [auraData, setAuraData] = useState({
-    colorName: 'Mystic Violet',
-    primaryColor: '#7C3AED',
-    secondaryColor: '#DB2777',
-    description: 'Your aura radiates creativity and deep intuition. You are connected to higher realms of consciousness.',
-  });
+  const [auraData, setAuraData] = useState<AuraData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  // Animation States
+  // Typewriter state
   const [displayedChars, setDisplayedChars] = useState(0);
-  const [cursorVisible, setCursorVisible] = useState(true);
-  const [isLoaded, setIsLoaded] = useState(false);
+  const [showCursor, setShowCursor] = useState(true);
 
-  // Particle State
-  const [particles, setParticles] = useState<Array<{
-    id: number;
-    color: string;
-    animatedStyle: any;
-  }>>([]);
-
-  // Orb Animation Values
+  // Animation values
   const orbScale = useSharedValue(0);
   const orbY = useSharedValue(-50);
   const contentOpacity = useSharedValue(0);
-  const cursorOpacity = useSharedValue(1);
 
-  // Styles
+  // Particle animations
+  const particleAnims = useRef(
+    Array.from({ length: 10 }, () => ({
+      transX: useSharedValue(0),
+      transY: useSharedValue(0),
+      opacity: useSharedValue(0),
+      scale: useSharedValue(1),
+    }))
+  ).current;
+
   const orbAnimatedStyle = useAnimatedStyle(() => ({
     transform: [
       { scale: orbScale.value },
-      { translateY: orbY.value }
-    ]
+      { translateY: orbY.value },
+    ],
   }));
 
   const contentAnimatedStyle = useAnimatedStyle(() => ({
     opacity: contentOpacity.value,
     transform: [
-      { translateY: interpolate(contentOpacity.value, [0, 1], [20, 0]) }
-    ]
+      { translateY: interpolate(contentOpacity.value, [0, 1], [20, 0]) },
+    ],
   }));
 
-  // Trigger Function
-  const triggerReveal = () => {
-    hapticMedium(); // 1. Haptic Start
+  const triggerReveal = (colorName: string) => {
+    hapticMedium();
 
-    // 2. Orb Animation (Spring)
+    // Orb entrance
     orbScale.value = withSpring(1, { damping: 12, stiffness: 100 });
     orbY.value = withSpring(0, { damping: 15 });
 
-    // 3. Content Fade In (Delayed)
+    // Content fade in
     contentOpacity.value = withDelay(600, withTiming(1, { duration: 500 }));
 
-    // 4. Haptic Success (Delayed)
-    setTimeout(() => {
-      hapticSuccess();
-    }, 600);
+    // Delayed haptic
+    setTimeout(() => hapticSuccess(), 600);
 
-    // 5. Start Typewriter
-    startTypewriter();
-
-    // 6. Explode Particles
-    explodeParticles();
-  };
-
-  const startTypewriter = () => {
-    const fullText = auraData.colorName;
+    // Typewriter
     let index = 0;
-    
-    // Blink cursor
-    const cursorInterval = setInterval(() => {
-      cursorOpacity.value = withTiming(cursorOpacity.value === 1 ? 0 : 1, { duration: 100 });
-    }, 500);
-
-    // Type text
     const typeInterval = setInterval(() => {
-      if (index < fullText.length) {
-        setDisplayedChars(prev => prev + 1);
+      if (index < colorName.length) {
+        setDisplayedChars((prev) => prev + 1);
         index++;
       } else {
         clearInterval(typeInterval);
-        clearInterval(cursorInterval);
-        cursorOpacity.value = 0; // Hide cursor when done
+        setShowCursor(false);
       }
-    }, 50); // 50ms per char
-  };
+    }, 50);
 
-  const explodeParticles = () => {
-    const newParticles = [];
-    const colors = [auraData.primaryColor, auraData.secondaryColor, '#FFFFFF'];
-    
-    for (let i = 0; i < 12; i++) {
-      const transX = useSharedValue(0);
-      const transY = useSharedValue(0);
-      const opacity = useSharedValue(1);
-      const scale = useSharedValue(1);
+    // Cursor blink
+    const cursorInterval = setInterval(() => {
+      setShowCursor((prev) => !prev);
+    }, 500);
+    setTimeout(() => clearInterval(cursorInterval), colorName.length * 50 + 500);
 
-      // Random destination
-      const destX = (Math.random() - 0.5) * 200; // -100 to 100
+    // Particle explosion
+    particleAnims.forEach((p) => {
+      const destX = (Math.random() - 0.5) * 200;
       const destY = (Math.random() - 0.5) * 200;
-
-      // Animate
-      transX.value = withTiming(destX, { duration: 1500, easing: Easing.out(Easing.quad) });
-      transY.value = withTiming(destY, { duration: 1500, easing: Easing.out(Easing.quad) });
-      opacity.value = withTiming(0, { duration: 1500 });
-      scale.value = withTiming(0, { duration: 1500 });
-
-      newParticles.push({
-        id: i,
-        color: colors[Math.floor(Math.random() * colors.length)],
-        animatedStyle: useAnimatedStyle(() => ({
-          transform: [{ translateX: transX.value }, { translateY: transY.value }, { scale: scale.value }],
-          opacity: opacity.value,
-          left: '50%', // Start from center
-          top: '40%',  // Start near orb
-          marginLeft: -4, // Center the 8px particle
-          marginTop: -4
-        }))
-      });
-    }
-    setParticles(newParticles);
+      p.opacity.value = 1;
+      p.scale.value = 1;
+      p.transX.value = withTiming(destX, { duration: 1500, easing: Easing.out(Easing.quad) });
+      p.transY.value = withTiming(destY, { duration: 1500, easing: Easing.out(Easing.quad) });
+      p.opacity.value = withTiming(0, { duration: 1500 });
+      p.scale.value = withTiming(0, { duration: 1500 });
+    });
   };
 
-  // Fetch data logic
   useEffect(() => {
     const fetchAura = async () => {
       try {
-        // Simulate API call structure as per plan
-        // const { data } = await api.get(`/aura/${id}`);
-        // setAuraData(data);
-        
-        // For now, keeping default state to ensure visual works immediately
-        setIsLoaded(true);
-      } catch (error) {
-        console.error('Failed to fetch aura', error);
-        setIsLoaded(true); // Proceed anyway to show UI
+        const { data } = await api.get(`/aura/${id}`);
+        setAuraData(data);
+        setIsLoading(false);
+        triggerReveal(data.aura_color);
+      } catch (err) {
+        console.error('Failed to fetch aura:', err);
+        setError('Could not load aura reading');
+        setIsLoading(false);
       }
     };
 
     fetchAura();
   }, [id]);
 
-  // Trigger animations when data is loaded
-  useEffect(() => {
-    if (isLoaded) {
-      triggerReveal();
-    }
-  }, [isLoaded]);
-
   const handleShare = async () => {
+    if (!auraData) return;
     hapticSelection();
+    const personality = auraData.personality.length > 100
+      ? auraData.personality.substring(0, 100) + '...'
+      : auraData.personality;
     try {
       await Share.share({
-        message: `My Aura is ${auraData.colorName}! ✨ Discover yours with AuraSnap.`,
-        url: 'https://aurasnap.app/share/' + id // Placeholder deep link
+        message: `My AuraSnap Reading\n\n${auraData.aura_color} Aura\nEnergy: ${auraData.energy_level}% | Mood: ${auraData.mood_score}/10\n\n${personality}\n\nDownload AuraSnap to discover YOUR aura!`,
       });
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      // ignore
     }
   };
 
+  if (isLoading) {
+    return (
+      <SafeAreaView className="flex-1 bg-gray-950 items-center justify-center">
+        <ActivityIndicator size="large" color="#8b5cf6" />
+        <Text className="text-gray-400 mt-4">Loading your aura...</Text>
+      </SafeAreaView>
+    );
+  }
+
+  if (error || !auraData) {
+    return (
+      <SafeAreaView className="flex-1 bg-gray-950 items-center justify-center px-6">
+        <Ionicons name="alert-circle-outline" size={48} color="#ef4444" />
+        <Text className="text-white text-lg font-bold mt-4">{error || 'Something went wrong'}</Text>
+        <Pressable
+          onPress={() => router.back()}
+          className="mt-6 bg-gray-800 px-6 py-3 rounded-full"
+        >
+          <Text className="text-white font-medium">Go Back</Text>
+        </Pressable>
+      </SafeAreaView>
+    );
+  }
+
+  const primaryHex = getColorHex(auraData.aura_color);
+  const secondaryHex = auraData.secondary_color ? getColorHex(auraData.secondary_color) : null;
+
+  const particleColors = [primaryHex, secondaryHex || '#ffffff', '#ffffff'];
+
   return (
-    <SafeAreaView className="flex-1 bg-gray-900">
-      {/* Background Gradient */}
-      <LinearGradient 
-        colors={['#111827', '#000000']} 
-        className="absolute inset-0" 
-      />
+    <SafeAreaView className="flex-1 bg-gray-950">
+      {/* Back Button */}
+      <Pressable
+        onPress={() => {
+          hapticSelection();
+          router.back();
+        }}
+        className="absolute top-14 left-4 z-50 w-10 h-10 rounded-full bg-gray-800/80 items-center justify-center"
+      >
+        <Ionicons name="arrow-back" size={20} color="#ffffff" />
+      </Pressable>
 
-      <View className="flex-1 relative">
-        
-        {/* 1. Celebration Particles Layer */}
-        <View className="absolute inset-0 pointer-events-none">
-          {particles.map((particle, index) => (
-            <Animated.View
-              key={particle.id}
-              className="absolute rounded-full"
-              style={[
-                { width: 8, height: 8, backgroundColor: particle.color },
-                particle.animatedStyle
-              ]}
-            />
-          ))}
-        </View>
+      <ScrollView
+        className="flex-1"
+        contentContainerStyle={{ paddingBottom: 100 }}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Particle Layer */}
+        <View className="items-center mt-16 mb-4" style={{ height: 220 }}>
+          {particleAnims.map((p, i) => {
+            const animStyle = useAnimatedStyle(() => ({
+              transform: [
+                { translateX: p.transX.value },
+                { translateY: p.transY.value },
+                { scale: p.scale.value },
+              ],
+              opacity: p.opacity.value,
+            }));
+            return (
+              <Animated.View
+                key={i}
+                className="absolute rounded-full"
+                style={[
+                  {
+                    width: 8,
+                    height: 8,
+                    backgroundColor: particleColors[i % particleColors.length],
+                    top: 100,
+                    left: '50%',
+                    marginLeft: -4,
+                  },
+                  animStyle,
+                ]}
+              />
+            );
+          })}
 
-        {/* 2. Main Content Container */}
-        <View className="flex-1 items-center justify-center px-6">
-          
-          {/* 3. Animated Aura Orb */}
-          <Animated.View style={orbAnimatedStyle} className="mb-12">
-            <LinearGradient
-              colors={[auraData.primaryColor, auraData.secondaryColor]}
-              className="w-64 h-64 rounded-full shadow-2xl"
+          {/* Animated Orb */}
+          <Animated.View style={orbAnimatedStyle} className="items-center">
+            <View
+              className="rounded-full items-center justify-center"
               style={{
-                shadowColor: auraData.primaryColor,
-                shadowOffset: { width: 0, height: 20 },
+                width: 160,
+                height: 160,
+                backgroundColor: primaryHex,
+                shadowColor: primaryHex,
+                shadowOffset: { width: 0, height: 0 },
                 shadowOpacity: 0.6,
-                shadowRadius: 40,
+                shadowRadius: 30,
+                elevation: 10,
               }}
             >
-              {/* Inner Glow */}
-              <View className="flex-1 items-center justify-center">
-                 <Ionicons name="sparkles" size={48} color="rgba(255,255,255,0.8)" />
-              </View>
-            </LinearGradient>
-          </Animated.View>
-
-          {/* 4. Text Content Area (Fades In) */}
-          <Animated.View style={contentAnimatedStyle} className="w-full items-center">
-            
-            {/* Typewriter Color Name */}
-            <View className="flex-row items-center mb-4">
-              <Text className="text-4xl font-bold text-white tracking-wider">
-                {auraData.colorName.substring(0, displayedChars)}
-              </Text>
-              <Animated.Text 
-                className="text-4xl font-bold text-white ml-1"
-                style={{ opacity: cursorOpacity }}
-              >
-                |
-              </Animated.Text>
+              <View
+                className="absolute rounded-full opacity-40"
+                style={{
+                  width: 120,
+                  height: 120,
+                  backgroundColor: '#ffffff',
+                }}
+              />
+              <Ionicons name="sparkles" size={40} color="rgba(255,255,255,0.8)" />
             </View>
-
-            {/* Description */}
-            <Text className="text-center text-gray-400 text-lg leading-7 mb-8">
-              {auraData.description}
-            </Text>
-
-            {/* Action Buttons */}
-            <View className="w-full gap-4">
-              <Pressable 
-                onPress={handleShare}
-                className="bg-white rounded-2xl p-4 flex-row items-center justify-center shadow-lg active:scale-95 transition-transform"
-              >
-                <Ionicons name="share-outline" size={24} color="#000" />
-                <Text className="ml-2 font-semibold text-black text-lg">Share Result</Text>
-              </Pressable>
-              
-              <Pressable 
-                onPress={() => router.replace('/(protected)/home')}
-                className="border border-gray-700 rounded-2xl p-4 flex-row items-center justify-center active:bg-gray-800"
-              >
-                <Text className="font-semibold text-white text-lg">Scan Again</Text>
-              </Pressable>
-            </View>
-
           </Animated.View>
         </View>
-      </View>
+
+        {/* Content - fades in after orb */}
+        <Animated.View style={contentAnimatedStyle}>
+          {/* Typewriter Color Name */}
+          <View className="flex-row items-center justify-center mb-2">
+            <Text className="text-3xl font-bold text-white tracking-wider">
+              {auraData.aura_color.substring(0, displayedChars)}
+            </Text>
+            {showCursor && (
+              <Text className="text-3xl font-bold text-white ml-0.5">|</Text>
+            )}
+          </View>
+
+          {/* Secondary Color Badge */}
+          {secondaryHex && auraData.secondary_color && (
+            <View className="items-center mb-4">
+              <View
+                className="rounded-full px-3 py-1"
+                style={{ backgroundColor: secondaryHex + '33' }}
+              >
+                <Text className="text-xs font-medium" style={{ color: secondaryHex }}>
+                  Secondary: {auraData.secondary_color}
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {/* Stats Row */}
+          <View className="flex-row mx-6 mt-4 mb-6">
+            <View className="flex-1 items-center rounded-xl bg-gray-800/50 p-4 mr-2">
+              <Ionicons name="flash" size={24} color="#f59e0b" />
+              <Text className="text-2xl font-bold text-white mt-1">{auraData.energy_level}%</Text>
+              <Text className="text-xs text-gray-400">Energy</Text>
+            </View>
+            <View className="flex-1 items-center rounded-xl bg-gray-800/50 p-4 ml-2">
+              <Text className="text-2xl">{auraData.mood_score >= 7 ? '\u{1F60A}' : '\u{1F60C}'}</Text>
+              <Text className="text-2xl font-bold text-white mt-1">{auraData.mood_score}/10</Text>
+              <Text className="text-xs text-gray-400">Mood</Text>
+            </View>
+          </View>
+
+          {/* Personality */}
+          <View className="mx-6 border-t border-gray-800 pt-6">
+            <Text className="text-lg font-bold text-white mb-3">Personality</Text>
+            <Text className="text-base text-gray-300 leading-6">{auraData.personality}</Text>
+          </View>
+
+          {/* Strengths */}
+          {auraData.strengths && auraData.strengths.length > 0 && (
+            <View className="mx-6 mt-6">
+              <Text className="text-lg font-bold text-white mb-3">Strengths</Text>
+              <View className="flex-row flex-wrap">
+                {auraData.strengths.map((s, i) => (
+                  <View
+                    key={i}
+                    className="bg-green-500/10 rounded-full px-3 py-1.5 mr-2 mb-2"
+                  >
+                    <Text className="text-green-400 text-sm">{s}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {/* Challenges */}
+          {auraData.challenges && auraData.challenges.length > 0 && (
+            <View className="mx-6 mt-6">
+              <Text className="text-lg font-bold text-white mb-3">Growth Areas</Text>
+              <View className="flex-row flex-wrap">
+                {auraData.challenges.map((ch, i) => (
+                  <View
+                    key={i}
+                    className="bg-amber-500/10 rounded-full px-3 py-1.5 mr-2 mb-2"
+                  >
+                    <Text className="text-amber-400 text-sm">{ch}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {/* Daily Advice */}
+          {auraData.daily_advice && (
+            <View className="mx-6 mt-6 bg-violet-900/20 rounded-2xl p-5 border border-violet-500/20">
+              <View className="flex-row items-center mb-2">
+                <Ionicons name="bulb" size={20} color="#a78bfa" />
+                <Text className="text-violet-300 font-semibold ml-2">Daily Guidance</Text>
+              </View>
+              <Text className="text-gray-300 text-sm leading-5">{auraData.daily_advice}</Text>
+            </View>
+          )}
+
+          {/* Action Buttons */}
+          <View className="mx-6 mt-8 gap-3">
+            <Pressable
+              onPress={handleShare}
+              className="bg-white rounded-2xl p-4 flex-row items-center justify-center"
+            >
+              <Ionicons name="share-outline" size={22} color="#000" />
+              <Text className="ml-2 font-bold text-black text-base">Share Result</Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => {
+                hapticSelection();
+                router.push('/(protected)/match');
+              }}
+              className="bg-pink-600 rounded-2xl p-4 flex-row items-center justify-center"
+            >
+              <Ionicons name="people" size={22} color="white" />
+              <Text className="ml-2 font-bold text-white text-base">Compare with Friend</Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => router.replace('/(protected)/home')}
+              className="border border-gray-700 rounded-2xl p-4 flex-row items-center justify-center"
+            >
+              <Text className="font-semibold text-white text-base">Scan Again</Text>
+            </Pressable>
+          </View>
+        </Animated.View>
+      </ScrollView>
     </SafeAreaView>
   );
 }

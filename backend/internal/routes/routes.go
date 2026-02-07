@@ -36,6 +36,10 @@ func Setup(app *fiber.App, cfg *config.Config, authHandler *handlers.AuthHandler
 	aura := protected.Group("/aura")
 	aura.Get("/scan/check", auraHandler.CheckScanEligibility)
 	aura.Post("/scan", auraHandler.Scan)
+	aura.Post("/scan/upload", auraHandler.ScanWithUpload)
+	aura.Get("/stats", auraHandler.Stats)
+	aura.Get("/:id", auraHandler.GetByID)
+	aura.Get("", auraHandler.List)
 
 	// Aura Match routes
 	match := protected.Group("/match")

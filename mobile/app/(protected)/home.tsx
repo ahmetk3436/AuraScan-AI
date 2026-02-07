@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, ActivityIndicator, Pressable, Share, Alert } from 'react-native';
+import { View, Text, ScrollView, ActivityIndicator, Pressable, Share, Alert, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
@@ -18,18 +18,19 @@ import { LinearGradient } from 'expo-linear-gradient';
 import api from '../../lib/api';
 import { hapticSuccess, hapticError, hapticSelection, hapticMedium } from '../../lib/haptics';
 import { useAuth } from '../../contexts/AuthContext';
+import { useSubscription } from '../../contexts/SubscriptionContext';
 
 const AURA_COLORS: Record<string, { gradient: [string, string]; emoji: string }> = {
-  'Red': { gradient: ['#dc2626', '#991b1b'], emoji: '🔴' },
-  'Orange': { gradient: ['#ea580c', '#c2410c'], emoji: '🟠' },
-  'Yellow': { gradient: ['#eab308', '#a16207'], emoji: '🟡' },
-  'Green': { gradient: ['#16a34a', '#15803d'], emoji: '🟢' },
-  'Blue': { gradient: ['#2563eb', '#1d4ed8'], emoji: '🔵' },
-  'Indigo': { gradient: ['#4f46e5', '#4338ca'], emoji: '🟣' },
-  'Violet': { gradient: ['#7c3aed', '#6d28d9'], emoji: '💜' },
-  'Pink': { gradient: ['#ec4899', '#db2777'], emoji: '💗' },
-  'Turquoise': { gradient: ['#06b6d4', '#0891b2'], emoji: '🩵' },
-  'Gold': { gradient: ['#f59e0b', '#d97706'], emoji: '✨' },
+  'Red': { gradient: ['#dc2626', '#991b1b'], emoji: '' },
+  'Orange': { gradient: ['#ea580c', '#c2410c'], emoji: '' },
+  'Yellow': { gradient: ['#eab308', '#a16207'], emoji: '' },
+  'Green': { gradient: ['#16a34a', '#15803d'], emoji: '' },
+  'Blue': { gradient: ['#2563eb', '#1d4ed8'], emoji: '' },
+  'Indigo': { gradient: ['#4f46e5', '#4338ca'], emoji: '' },
+  'Violet': { gradient: ['#7c3aed', '#6d28d9'], emoji: '' },
+  'Pink': { gradient: ['#ec4899', '#db2777'], emoji: '' },
+  'Turquoise': { gradient: ['#06b6d4', '#0891b2'], emoji: '' },
+  'Gold': { gradient: ['#f59e0b', '#d97706'], emoji: '' },
 };
 
 function getAuraGradient(title: string): [string, string] {
@@ -39,17 +40,28 @@ function getAuraGradient(title: string): [string, string] {
   return ['#7c3aed', '#4f46e5'];
 }
 
+function getGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Good morning';
+  if (hour < 18) return 'Good afternoon';
+  return 'Good evening';
+}
+
 export default function HomeScreen() {
   const router = useRouter();
-  const { user, isGuest, guestUsageCount, canUseFeature, incrementGuestUsage } = useAuth();
+  const { user, isGuest, isAuthenticated, guestUsageCount, canUseFeature, incrementGuestUsage } = useAuth();
+  const { isSubscribed } = useSubscription();
   const [result, setResult] = useState<any>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [history, setHistory] = useState<any[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
+  const [todayScanCount, setTodayScanCount] = useState(0);
 
   // Animations
   const orbPulse = useSharedValue(1);
   const orbGlow = useSharedValue(0.3);
   const resultScale = useSharedValue(0);
+  const loadingPulse = useSharedValue(0.4);
 
   useEffect(() => {
     // Breathing pulse animation for scan button
@@ -65,6 +77,14 @@ export default function HomeScreen() {
       withSequence(
         withTiming(0.6, { duration: 2000 }),
         withTiming(0.3, { duration: 2000 })
+      ),
+      -1,
+      true
+    );
+    loadingPulse.value = withRepeat(
+      withSequence(
+        withTiming(1, { duration: 1500 }),
+        withTiming(0.4, { duration: 1500 })
       ),
       -1,
       true
@@ -101,6 +121,20 @@ export default function HomeScreen() {
       return;
     }
 
+    // Check authenticated user daily limit
+    if (isAuthenticated && !isSubscribed && todayScanCount >= 2) {
+      hapticError();
+      Alert.alert(
+        'Daily Limit Reached',
+        'Free users get 2 scans per day. Upgrade to Premium for unlimited scans!',
+        [
+          { text: 'Upgrade', onPress: () => router.push('/(protected)/paywall') },
+          { text: 'OK', style: 'cancel' },
+        ]
+      );
+      return;
+    }
+
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
       hapticError();
@@ -123,19 +157,24 @@ export default function HomeScreen() {
 
     try {
       const base64 = await FileSystem.readAsStringAsync(pickerResult.assets[0].uri, {
-        encoding: 'base64',
+        encoding: 'base64' as any,
       });
 
       const response = await api.post('/aura/scan', { image_data: base64 });
 
       const scanResult = {
-        id: Date.now(),
+        id: response.data.id || Date.now(),
         date: new Date().toLocaleDateString(),
+        title: response.data.aura_color || 'Unknown',
+        description: response.data.personality || '',
+        energy_level: response.data.energy_level,
+        mood_score: response.data.mood_score,
         ...response.data,
       };
 
       setResult(scanResult);
       setHistory((prev) => [scanResult, ...prev].slice(0, 10));
+      setTodayScanCount((prev) => prev + 1);
 
       // Animate result card in
       resultScale.value = withSpring(1, { damping: 12, stiffness: 100 });
@@ -159,11 +198,25 @@ export default function HomeScreen() {
     hapticSelection();
     try {
       await Share.share({
-        message: `My aura is ${result.title}! ✨ Discover yours with AuraSnap.`,
+        message: `My aura is ${result.title}! Discover yours with AuraSnap.`,
       });
     } catch {
       // ignore
     }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    // Could refresh streak, scan count, etc.
+    try {
+      if (isAuthenticated) {
+        const { data } = await api.get('/aura/scan/check');
+        setTodayScanCount(2 - (data.remaining || 0));
+      }
+    } catch {
+      // ignore
+    }
+    setRefreshing(false);
   };
 
   const remainingScans = isGuest ? Math.max(0, 3 - guestUsageCount) : null;
@@ -171,13 +224,23 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-gray-950" edges={['top']}>
-      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+      <ScrollView
+        className="flex-1"
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#8b5cf6"
+          />
+        }
+      >
         {/* Header */}
         <View className="px-6 pt-4 pb-2 flex-row justify-between items-center">
           <View>
             <Text className="text-2xl font-bold text-white">AuraSnap</Text>
             <Text className="text-sm text-gray-400 mt-0.5">
-              {isGuest ? 'Guest Mode' : `Hey, ${greeting}`}
+              {isGuest ? 'Guest Mode' : `${getGreeting()}, ${greeting}`}
             </Text>
           </View>
           <Pressable
@@ -249,42 +312,126 @@ export default function HomeScreen() {
           </Text>
         </View>
 
+        {/* Empty State (when no result and not scanning) */}
+        {!result && !isScanning && (
+          <View className="mx-6 mt-2 items-center mb-8">
+            <Text className="text-lg font-semibold text-white">Your Daily Aura Awaits</Text>
+            <Text className="text-sm text-gray-400 text-center mt-2 mx-4">
+              Take a selfie and our AI will analyze your energy, mood, and personality.
+            </Text>
+            <View className="flex-row justify-center mt-6">
+              <View className="items-center mx-4">
+                <View className="h-10 w-10 rounded-full bg-gray-800 items-center justify-center">
+                  <Ionicons name="camera" size={18} color="#9ca3af" />
+                </View>
+                <Text className="text-xs text-gray-500 mt-1">Selfie</Text>
+              </View>
+              <View className="items-center mx-4">
+                <View className="h-10 w-10 rounded-full bg-gray-800 items-center justify-center">
+                  <Ionicons name="sparkles" size={18} color="#9ca3af" />
+                </View>
+                <Text className="text-xs text-gray-500 mt-1">AI Analysis</Text>
+              </View>
+              <View className="items-center mx-4">
+                <View className="h-10 w-10 rounded-full bg-gray-800 items-center justify-center">
+                  <Ionicons name="share-outline" size={18} color="#9ca3af" />
+                </View>
+                <Text className="text-xs text-gray-500 mt-1">Share</Text>
+              </View>
+            </View>
+          </View>
+        )}
+
         {/* Result Card */}
         {result && (
           <Animated.View style={resultAnimatedStyle} className="mx-6 mb-6">
-            <LinearGradient
-              colors={getAuraGradient(result.title)}
-              className="rounded-3xl p-6 shadow-lg"
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
+            <Pressable
+              onPress={() => {
+                hapticSelection();
+                router.push(`/(protected)/aura/${result.id}`);
+              }}
             >
-              <View className="flex-row justify-between items-start mb-3">
-                <Text className="text-white text-2xl font-bold flex-1 mr-2">{result.title}</Text>
-                <Text className="text-white/60 text-xs">{result.date}</Text>
-              </View>
+              <LinearGradient
+                colors={getAuraGradient(result.title)}
+                className="rounded-3xl p-6 shadow-lg"
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <View className="flex-row justify-between items-start mb-3">
+                  <Text className="text-white text-2xl font-bold flex-1 mr-2">{result.title}</Text>
+                  <Text className="text-white/60 text-xs">{result.date}</Text>
+                </View>
 
-              <Text className="text-white/90 text-base leading-6 mb-5">
-                {result.description}
-              </Text>
+                <Text className="text-white/90 text-base leading-6 mb-5" numberOfLines={3}>
+                  {result.description}
+                </Text>
 
-              <View className="flex-row gap-3">
-                <Pressable
-                  onPress={handleShare}
-                  className="flex-1 bg-white/20 py-3 rounded-xl flex-row items-center justify-center"
-                >
-                  <Ionicons name="share-outline" size={18} color="white" />
-                  <Text className="text-white font-semibold ml-2">Share</Text>
-                </Pressable>
-                <Pressable
-                  onPress={handleScan}
-                  className="flex-1 bg-white/10 py-3 rounded-xl flex-row items-center justify-center border border-white/20"
-                >
-                  <Ionicons name="refresh" size={18} color="white" />
-                  <Text className="text-white font-semibold ml-2">Rescan</Text>
-                </Pressable>
-              </View>
-            </LinearGradient>
+                {/* Stats */}
+                <View className="flex-row mb-4">
+                  {result.energy_level && (
+                    <View className="bg-white/20 rounded-full px-3 py-1 mr-2 flex-row items-center">
+                      <Ionicons name="flash" size={12} color="white" />
+                      <Text className="text-white text-xs ml-1">{result.energy_level}%</Text>
+                    </View>
+                  )}
+                  {result.mood_score && (
+                    <View className="bg-white/20 rounded-full px-3 py-1 flex-row items-center">
+                      <Ionicons name="heart" size={12} color="white" />
+                      <Text className="text-white text-xs ml-1">{result.mood_score}/10</Text>
+                    </View>
+                  )}
+                </View>
+
+                <View className="flex-row gap-3">
+                  <Pressable
+                    onPress={handleShare}
+                    className="flex-1 bg-white/20 py-3 rounded-xl flex-row items-center justify-center"
+                  >
+                    <Ionicons name="share-outline" size={18} color="white" />
+                    <Text className="text-white font-semibold ml-2">Share</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={handleScan}
+                    className="flex-1 bg-white/10 py-3 rounded-xl flex-row items-center justify-center border border-white/20"
+                  >
+                    <Ionicons name="refresh" size={18} color="white" />
+                    <Text className="text-white font-semibold ml-2">Rescan</Text>
+                  </Pressable>
+                </View>
+              </LinearGradient>
+            </Pressable>
           </Animated.View>
+        )}
+
+        {/* Quick Actions */}
+        {!isGuest && isAuthenticated && (
+          <View className="px-6 mb-6">
+            <Text className="text-lg font-bold text-white mb-3">Quick Actions</Text>
+            <View className="flex-row gap-3">
+              <Pressable
+                onPress={() => {
+                  hapticSelection();
+                  router.push('/(protected)/history');
+                }}
+                className="flex-1 bg-gray-800/60 p-4 rounded-2xl border border-gray-700/50"
+              >
+                <Ionicons name="time-outline" size={24} color="#8b5cf6" />
+                <Text className="text-white font-medium mt-2">History</Text>
+                <Text className="text-gray-400 text-xs mt-0.5">Past readings</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  hapticSelection();
+                  router.push('/(protected)/match');
+                }}
+                className="flex-1 bg-gray-800/60 p-4 rounded-2xl border border-gray-700/50"
+              >
+                <Ionicons name="people-outline" size={24} color="#ec4899" />
+                <Text className="text-white font-medium mt-2">Match</Text>
+                <Text className="text-gray-400 text-xs mt-0.5">Compare auras</Text>
+              </Pressable>
+            </View>
+          </View>
         )}
 
         {/* History Section */}
@@ -295,9 +442,8 @@ export default function HomeScreen() {
               <Pressable
                 key={item.id}
                 onPress={() => {
-                  setResult(item);
-                  resultScale.value = withSpring(1);
                   hapticSelection();
+                  router.push(`/(protected)/aura/${item.id}`);
                 }}
                 className="bg-gray-800/60 p-4 rounded-2xl mb-2 flex-row items-center border border-gray-700/50"
               >
@@ -322,7 +468,7 @@ export default function HomeScreen() {
           <View className="mx-6 mb-8">
             <Pressable
               onPress={() => router.push('/(auth)/register')}
-              className="bg-gradient-to-r rounded-2xl overflow-hidden"
+              className="rounded-2xl overflow-hidden"
             >
               <LinearGradient
                 colors={['#4f46e5', '#7c3aed']}
