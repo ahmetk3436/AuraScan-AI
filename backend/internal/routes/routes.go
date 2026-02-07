@@ -8,11 +8,15 @@ import (
 )
 
 // Setup configures all API routes for the application
-func Setup(app *fiber.App, cfg *config.Config, authHandler *handlers.AuthHandler, healthHandler *handlers.HealthHandler, webhookHandler *handlers.WebhookHandler, moderationHandler *handlers.ModerationHandler, auraHandler *handlers.AuraHandler, auraMatchHandler *handlers.AuraMatchHandler, streakHandler *handlers.StreakHandler) {
+func Setup(app *fiber.App, cfg *config.Config, authHandler *handlers.AuthHandler, healthHandler *handlers.HealthHandler, webhookHandler *handlers.WebhookHandler, moderationHandler *handlers.ModerationHandler, auraHandler *handlers.AuraHandler, auraMatchHandler *handlers.AuraMatchHandler, streakHandler *handlers.StreakHandler, legalHandler *handlers.LegalHandler) {
 	api := app.Group("/api")
 
 	// Health check
 	api.Get("/health", healthHandler.Check)
+
+	// Legal pages
+	api.Get("/privacy-policy", legalHandler.PrivacyPolicy)
+	api.Get("/terms", legalHandler.TermsOfService)
 
 	// Public auth routes
 	auth := api.Group("/auth")

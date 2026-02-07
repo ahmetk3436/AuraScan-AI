@@ -1,8 +1,9 @@
 {
   "expo": {
-    "name": "mobile",
-    "slug": "mobile",
+    "name": "AuraSnap",
+    "slug": "aurasnap",
     "version": "1.0.0",
+    "owner": "ahmetcoskunkizilkaya",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "appfactory",
@@ -14,7 +15,16 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.ahmetcoskunkizilkaya.aurasnap",
+      "buildNumber": "1",
+      "config": {
+        "usesNonExemptEncryption": false
+      },
+      "infoPlist": {
+        "NSCameraUsageDescription": "AuraSnap uses the camera to capture your photo for aura color analysis.",
+        "NSPhotoLibraryUsageDescription": "AuraSnap accesses your photos to analyze your aura color personality."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -30,6 +40,14 @@
     "plugins": [
       "expo-router",
       "expo-secure-store"
-    ]
+    ],
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "FILL_IN"
+      }
+    }
   }
 }
