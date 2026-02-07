@@ -1,109 +1,45 @@
-import React, { useEffect, useRef } from 'react';
-import { View, Animated, Easing } from 'react-native';
+import React from 'react';
+import { View, Text } from 'react-native';
+import { colorMap } from '../../utils/constants';
 
 interface AuraOrbProps {
-  color: string;
-  size?: number;
+  colorName: string;
+  size: number;
+  label?: string;
 }
 
-const colorHex: Record<string, string> = {
-  red: '#ef4444',
-  orange: '#f97316',
-  yellow: '#eab308',
-  green: '#22c55e',
-  blue: '#3b82f6',
-  indigo: '#6366f1',
-  violet: '#8b5cf6',
-  white: '#f8fafc',
-  gold: '#fbbf24',
-  pink: '#ec4899',
-};
-
-export default function AuraOrb({ color, size = 200 }: AuraOrbProps) {
-  const pulseAnim = useRef(new Animated.Value(1)).current;
-  const glowAnim = useRef(new Animated.Value(0.3)).current;
-
-  useEffect(() => {
-    // Pulse animation
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.05,
-          duration: 2000,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 2000,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
-
-    // Glow animation
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(glowAnim, {
-          toValue: 0.6,
-          duration: 1500,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.timing(glowAnim, {
-          toValue: 0.3,
-          duration: 1500,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
-  }, []);
-
-  const colorValue = colorHex[color] || colorHex.violet;
+export default function AuraOrb({ colorName, size, label }: AuraOrbProps) {
+  const colorHex = colorMap[colorName as keyof typeof colorMap] || '#a855f7';
 
   return (
-    <View className="items-center justify-center">
-      {/* Outer glow */}
-      <Animated.View
-        style={{
-          position: 'absolute',
-          width: size * 1.5,
-          height: size * 1.5,
-          borderRadius: size * 0.75,
-          backgroundColor: colorValue,
-          opacity: glowAnim,
-          transform: [{ scale: pulseAnim }],
-        }}
-      />
-      {/* Middle glow */}
-      <Animated.View
-        style={{
-          position: 'absolute',
-          width: size * 1.2,
-          height: size * 1.2,
-          borderRadius: size * 0.6,
-          backgroundColor: colorValue,
-          opacity: Animated.add(glowAnim, 0.2),
-          transform: [{ scale: pulseAnim }],
-        }}
-      />
-      {/* Core orb */}
-      <Animated.View
-        style={{
-          width: size,
-          height: size,
-          borderRadius: size / 2,
-          backgroundColor: colorValue,
-          transform: [{ scale: pulseAnim }],
-          shadowColor: colorValue,
+    <View className="flex-col items-center justify-center">
+      {/* The Orb Visualization */}
+      <View 
+        className="rounded-full shadow-2xl"
+        style={{ 
+          width: size, 
+          height: size, 
+          backgroundColor: colorHex,
+          shadowColor: colorHex,
           shadowOffset: { width: 0, height: 0 },
-          shadowOpacity: 0.8,
-          shadowRadius: 30,
-          elevation: 10,
+          shadowOpacity: 0.6,
+          shadowRadius: 20,
+          elevation: 10
         }}
-      />
+      >
+        {/* Inner Glow Effect */}
+        <View 
+          className="absolute inset-4 rounded-full opacity-50 blur-xl"
+          style={{ backgroundColor: 'white' }}
+        />
+      </View>
+
+      {/* Optional Label */}
+      {label && (
+        <Text className="text-sm font-medium text-gray-300 mt-3 text-center">
+          {label}
+        </Text>
+      )}
     </View>
   );
 }

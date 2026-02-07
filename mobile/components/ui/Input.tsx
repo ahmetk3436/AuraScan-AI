@@ -1,45 +1,52 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, type TextInputProps } from 'react-native';
-import { cn } from '../../lib/cn';
+import { View, Text, TextInput } from 'react-native';
 
-interface InputProps extends TextInputProps {
-  label?: string;
-  error?: string;
+export interface InputProps {
+  label: string;
+  placeholder?: string;
+  value: string;
+  onChangeText: (text: string) => void;
+  secureTextEntry?: boolean;
+  keyboardType?: 'default' | 'email-address' | 'numeric' | 'phone-pad';
+  autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
+  multiline?: boolean;
+  numberOfLines?: number;
 }
 
-export default function Input({ label, error, className, ...props }: InputProps) {
-  const [isFocused, setIsFocused] = useState(false);
+export default function Input({
+  label,
+  placeholder,
+  value,
+  onChangeText,
+  secureTextEntry = false,
+  keyboardType = 'default',
+  autoCapitalize = 'sentences',
+  multiline = false,
+  numberOfLines,
+}: InputProps) {
+  const [isFocused, setIsFocused] = useState<boolean>(false);
 
   return (
-    <View className="w-full">
-      {label && (
-        <Text className="mb-1.5 text-sm font-medium text-gray-700">
-          {label}
-        </Text>
-      )}
+    <View className="mb-4">
+      <Text className="text-gray-300 text-sm font-medium mb-2">{label}</Text>
       <TextInput
-        className={cn(
-          'w-full rounded-xl border bg-white px-4 py-3 text-base text-gray-900',
-          isFocused
-            ? 'border-primary-500 ring-2 ring-primary-200'
-            : 'border-gray-300',
-          error && 'border-red-500',
-          className
-        )}
-        placeholderTextColor="#9ca3af"
-        onFocus={(e) => {
-          setIsFocused(true);
-          props.onFocus?.(e);
-        }}
-        onBlur={(e) => {
-          setIsFocused(false);
-          props.onBlur?.(e);
-        }}
-        {...props}
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor="#9CA3AF"
+        secureTextEntry={secureTextEntry}
+        keyboardType={keyboardType}
+        autoCapitalize={autoCapitalize}
+        multiline={multiline}
+        numberOfLines={numberOfLines}
+        textAlignVertical={multiline ? 'top' : 'center'}
+        onFocus={() => setIsFocused(true)}
+        onBlur={() => setIsFocused(false)}
+        className={`bg-gray-800 border text-white rounded-xl px-4 py-3 text-base ${
+          isFocused ? 'border-violet-500' : 'border-gray-700'
+        }`}
       />
-      {error && (
-        <Text className="mt-1 text-sm text-red-500">{error}</Text>
-      )}
+      <View className="h-1" />
     </View>
   );
 }

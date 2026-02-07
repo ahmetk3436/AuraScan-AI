@@ -256,6 +256,33 @@ func (s *AuthService) generateRefreshToken(user *models.User) (string, error) {
 	return rawToken, nil
 }
 
+// GetProfile retrieves the user's profile including subscription and streak info
+func (s *AuthService) GetProfile(userID uuid.UUID) (map[string]interface{}, error) {
+	var user models.User
+	if err := s.db.First(&user, "id = ?", userID).Error; err != nil {
+		return nil, ErrUserNotFound
+	}
+
+	subStatus := ""
+	var sub models.Subscription
+	if err := s.db.Where("user_id = ?", userID).Order("created_at DESC").First(&sub).Error; err == nil {
+		subStatus = sub.Status
+	}
+
+	currentStreak := 0
+	var streak models.AuraStreak
+	if err := s.db.Where("user_id = ?", userID).First(&streak).Error; err == nil {
+		currentStreak = streak.CurrentStreak
+	}
+
+	return map[string]interface{}{
+		"id":                 userID.String(),
+		"email":              user.Email,
+		"subscriptionStatus": subStatus,
+		"currentStreak":      currentStreak,
+	}, nil
+}
+
 func hashToken(token string) string {
 	h := sha256.Sum256([]byte(token))
 	return fmt.Sprintf("%x", h)

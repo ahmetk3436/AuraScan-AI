@@ -1,96 +1,127 @@
 import React, { useState } from 'react';
-import { View, Text, KeyboardAvoidingView, Platform } from 'react-native';
-import { Link } from 'expo-router';
-import { useAuth } from '../../contexts/AuthContext';
-import Button from '../../components/ui/Button';
+import { View, Text, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Pressable } from 'react-native';
+import { useRouter } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import Input from '../../components/ui/Input';
-import AppleSignInButton from '../../components/ui/AppleSignInButton';
+import Button from '../../components/ui/Button';
+import { useAuth } from '../../contexts/AuthContext';
+import { hapticError, hapticSuccess, hapticSelection } from '../../lib/haptics';
 
 export default function LoginScreen() {
-  const { login } = useAuth();
+  const router = useRouter();
+  const { login, continueAsGuest } = useAuth();
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   const handleLogin = async () => {
+    setIsLoading(true);
     setError('');
+
     if (!email || !password) {
-      setError('Please fill in all fields');
+      setError('Please fill in all fields.');
+      setIsLoading(false);
+      hapticError();
       return;
     }
 
-    setIsLoading(true);
     try {
       await login(email, password);
+      hapticSuccess();
+      router.replace('/(protected)/home');
     } catch (err: any) {
-      setError(
-        err.response?.data?.message || 'Login failed. Please try again.'
-      );
-    } finally {
+      hapticError();
+      setError(err.response?.data?.message || 'Login failed. Please check your credentials.');
       setIsLoading(false);
     }
   };
 
+  const handleGuestMode = async () => {
+    hapticSelection();
+    await continueAsGuest();
+    router.replace('/(protected)/home');
+  };
+
   return (
     <KeyboardAvoidingView
-      className="flex-1 bg-white"
+      className="flex-1 bg-gray-950"
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <View className="flex-1 justify-center px-8">
-        <Text className="mb-2 text-3xl font-bold text-gray-900">
-          Welcome back
-        </Text>
-        <Text className="mb-8 text-base text-gray-500">
-          Sign in to your account
-        </Text>
-
-        {error ? (
-          <View className="mb-4 rounded-lg bg-red-50 p-3">
-            <Text className="text-sm text-red-600">{error}</Text>
+      <SafeAreaView className="flex-1">
+        <ScrollView
+          className="flex-1 px-6"
+          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
+        >
+          {/* Logo */}
+          <View className="items-center mb-10">
+            <LinearGradient
+              colors={['#7c3aed', '#ec4899']}
+              className="w-20 h-20 rounded-3xl items-center justify-center mb-4"
+            >
+              <Ionicons name="sparkles" size={36} color="white" />
+            </LinearGradient>
+            <Text className="text-3xl font-bold text-white">AuraSnap</Text>
+            <Text className="text-sm text-gray-400 mt-1">Discover your energy</Text>
           </View>
-        ) : null}
 
-        <View className="mb-4">
-          <Input
-            label="Email"
-            placeholder="you@example.com"
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            textContentType="emailAddress"
-          />
-        </View>
+          {/* Form */}
+          <View className="w-full">
+            <Text className="text-xl font-bold text-white mb-1">Welcome back</Text>
+            <Text className="text-sm text-gray-400 mb-6">Sign in to your account</Text>
 
-        <View className="mb-6">
-          <Input
-            label="Password"
-            placeholder="Your password"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            textContentType="password"
-          />
-        </View>
+            <Input
+              label="Email"
+              placeholder="email@example.com"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
 
-        <Button
-          title="Sign In"
-          onPress={handleLogin}
-          isLoading={isLoading}
-          size="lg"
-        />
+            <Input
+              label="Password"
+              placeholder="Enter your password"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+            />
 
-        {/* Sign in with Apple — equal visual prominence (Guideline 4.8) */}
-        <AppleSignInButton onError={(msg) => setError(msg)} />
+            {error ? (
+              <View className="bg-red-900/30 rounded-xl p-3 mb-4 border border-red-500/20">
+                <Text className="text-red-400 text-sm">{error}</Text>
+              </View>
+            ) : null}
 
-        <View className="mt-6 flex-row items-center justify-center">
-          <Text className="text-gray-500">Don't have an account? </Text>
-          <Link href="/(auth)/register" asChild>
-            <Text className="font-semibold text-primary-600">Sign Up</Text>
-          </Link>
-        </View>
-      </View>
+            <Button
+              onPress={handleLogin}
+              disabled={isLoading}
+              variant="primary"
+              className="w-full mb-3"
+            >
+              {isLoading ? <ActivityIndicator size="small" color="#ffffff" /> : 'Sign In'}
+            </Button>
+
+            {/* Guest Mode */}
+            <Pressable
+              onPress={handleGuestMode}
+              className="w-full border border-gray-700 rounded-2xl py-3.5 items-center mb-6"
+            >
+              <Text className="text-gray-300 font-medium">Try Without Account</Text>
+            </Pressable>
+
+            <View className="flex-row justify-center items-center">
+              <Text className="text-gray-500">Don't have an account? </Text>
+              <Pressable onPress={() => router.push('/(auth)/register')}>
+                <Text className="text-violet-400 font-semibold">Sign Up</Text>
+              </Pressable>
+            </View>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
     </KeyboardAvoidingView>
   );
 }

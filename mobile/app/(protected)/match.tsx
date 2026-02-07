@@ -1,238 +1,200 @@
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  TextInput,
-  Alert,
-  Share,
-  KeyboardAvoidingView,
-  Platform,
-} from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Share } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as Clipboard from 'expo-clipboard';
+import * as Sharing from 'expo-sharing';
+import { useAuth } from '../../contexts/AuthContext';
+import { hapticSuccess, hapticError, hapticSelection } from '../../lib/haptics';
 import api from '../../lib/api';
-import { hapticSuccess, hapticError, hapticMedium } from '../../lib/haptics';
-import DualAuraOrbs from '../../components/match/DualAuraOrbs';
-import CompatibilityScore from '../../components/match/CompatibilityScore';
-import SynergyCard from '../../components/match/SynergyCard';
-
-interface MatchResult {
-  id: string;
-  compatibility_score: number;
-  synergy: string;
-  tension: string;
-  advice: string;
-  user_aura_color: string;
-  friend_aura_color: string;
-}
 
 export default function MatchScreen() {
+  const { user } = useAuth();
   const router = useRouter();
-  const [friendId, setFriendId] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [matchResult, setMatchResult] = useState<MatchResult | null>(null);
+  const [friendId, setFriendId] = useState<string>('');
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string>('');
+  const [copied, setCopied] = useState<boolean>(false);
 
+  // 1. Copy User ID
+  const handleCopyId = async () => {
+    if (!user?.id) return;
+    await Clipboard.setStringAsync(user.id);
+    setCopied(true);
+    hapticSuccess();
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  // 2. Share User ID
+  const handleShareId = async () => {
+    if (!user?.id) return;
+    hapticSelection();
+    try {
+      await Share.share({
+        message: `Match auras with me on AuraSnap! My ID: ${user.id}`,
+      });
+    } catch (error) {
+      hapticError();
+    }
+  };
+
+  // 3. Paste from Clipboard
+  const handlePaste = async () => {
+    hapticSelection();
+    const text = await Clipboard.getStringAsync();
+    if (text) {
+      setFriendId(text.trim());
+      // Trigger validation immediately after paste
+      validateInput(text.trim());
+    }
+  };
+
+  // 4. Input Validation
+  const validateInput = (id: string) => {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (id.length > 0 && !uuidRegex.test(id)) {
+      setError('Invalid ID format. Please check the UUID.');
+      return false;
+    } else {
+      setError('');
+      return true;
+    }
+  };
+
+  // 5. Handle Input Change
+  const handleInputChange = (text: string) => {
+    setFriendId(text);
+    if (error) validateInput(text);
+  };
+
+  // 6. Submit Match
   const handleMatch = async () => {
-    if (!friendId.trim()) {
-      Alert.alert('Enter Friend ID', 'Please enter your friend\'s user ID to compare auras.');
+    if (!validateInput(friendId)) {
+      hapticError();
       return;
     }
 
     setIsLoading(true);
-    hapticMedium();
-
+    setError('');
+    
     try {
-      const { data } = await api.post('/aura/match', {
-        friend_id: friendId.trim(),
-      });
-
-      setMatchResult(data);
+      // API Call logic here
+      const response = await api.post('/match', { friendId });
+      
+      // Simulate network delay (kept for UX smoothness if API is fast, but API call is primary)
+      // await new Promise(resolve => setTimeout(resolve, 2000));
+      
       hapticSuccess();
-    } catch (error: any) {
+      // Navigate to result
+      // Assuming response structure matches plan section 8
+      const { matchScore, compatibilityType, analysis } = response.data.data;
+      router.push({ 
+        pathname: '/(protected)/result', 
+        params: { score: String(matchScore), type: compatibilityType, analysis: analysis } 
+      });
+    } catch (err) {
       hapticError();
-      const message = error.response?.data?.message || 'Failed to calculate match';
-      Alert.alert('Match Failed', message);
+      setError('Failed to connect. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleShare = async () => {
-    if (!matchResult) return;
-
-    hapticMedium();
-
-    const shareMessage = `💫 Our Aura Compatibility: ${matchResult.compatibility_score}%!
-
-My aura: ${matchResult.user_aura_color.toUpperCase()}
-Their aura: ${matchResult.friend_aura_color.toUpperCase()}
-
-${matchResult.synergy}
-
-Discover your aura compatibility with AuraSnap! 🌈`;
-
-    try {
-      await Share.share({ message: shareMessage });
-      hapticSuccess();
-    } catch {
-      // User cancelled
-    }
-  };
-
-  const resetMatch = () => {
-    setMatchResult(null);
-    setFriendId('');
-  };
-
   return (
-    <SafeAreaView className="flex-1 bg-gray-950">
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    <SafeAreaView className="flex-1 bg-gray-900">
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
         className="flex-1"
       >
-        <ScrollView
-          className="flex-1"
-          contentContainerStyle={{ paddingBottom: 100 }}
-          showsVerticalScrollIndicator={false}
+        <ScrollView 
+          contentContainerClassName="p-6"
           keyboardShouldPersistTaps="handled"
         >
           {/* Header */}
-          <View className="flex-row items-center px-4 pt-2">
-            <TouchableOpacity
-              onPress={() => router.back()}
-              className="rounded-full bg-gray-800/50 p-2"
-            >
-              <Ionicons name="arrow-back" size={24} color="#fff" />
-            </TouchableOpacity>
-            <Text className="ml-4 text-2xl font-bold text-white">
-              Aura Compatibility
-            </Text>
+          <View className="mb-8">
+            <Text className="text-3xl font-bold text-white mb-2">Aura Match</Text>
+            <Text className="text-base text-gray-400">Connect with friends to compare energy.</Text>
           </View>
 
-          {matchResult ? (
-            // Results View
-            <>
-              {/* Dual Orbs */}
-              <View className="mt-8">
-                <DualAuraOrbs
-                  userColor={matchResult.user_aura_color}
-                  friendColor={matchResult.friend_aura_color}
-                  compatibilityScore={matchResult.compatibility_score}
+          {/* Your ID Card */}
+          <View className="mx-0 mt-4 rounded-2xl bg-gray-800/50 p-5 border border-gray-700/50">
+            <View className="flex-row items-center mb-3">
+              <Ionicons name="person-circle" size={24} color="#8b5cf6" />
+              <Text className="text-sm text-gray-400 ml-2 font-medium">Your ID</Text>
+            </View>
+            
+            <View className="flex-row items-center justify-between bg-gray-900/50 rounded-xl p-3">
+              <Text className="text-xs text-white font-mono tracking-wider">
+                {user?.id ? `${user.id.slice(0, 8)}...${user.id.slice(-4)}` : 'Loading...'}
+              </Text>
+              <TouchableOpacity onPress={handleCopyId}>
+                <Ionicons 
+                  name={copied ? "checkmark-circle" : "copy-outline"} 
+                  size={20} 
+                  color={copied ? "#10b981" : "#9ca3af"} 
                 />
-              </View>
+              </TouchableOpacity>
+            </View>
 
-              {/* Compatibility Score */}
-              <View className="mt-8 items-center">
-                <CompatibilityScore score={matchResult.compatibility_score} />
-              </View>
+            <Text className="text-xs text-gray-500 mt-3 text-center leading-4">
+              Share this ID with friends so they can match with you
+            </Text>
 
-              {/* Synergy Details */}
-              <View className="mx-6 mt-8">
-                <SynergyCard
-                  synergy={matchResult.synergy}
-                  tension={matchResult.tension}
-                  advice={matchResult.advice}
-                />
-              </View>
+            {/* Share My ID Button */}
+            <TouchableOpacity 
+              onPress={handleShareId}
+              className="flex-row items-center justify-center bg-violet-600/20 rounded-full py-2.5 mt-4 active:opacity-80"
+            >
+              <Ionicons name="share-outline" size={16} color="#8b5cf6" />
+              <Text className="text-sm font-semibold text-violet-400 ml-2">Share My ID</Text>
+            </TouchableOpacity>
+          </View>
 
-              {/* Action Buttons */}
-              <View className="mx-6 mt-8 space-y-3">
-                <TouchableOpacity
-                  onPress={handleShare}
-                  className="flex-row items-center justify-center rounded-full bg-pink-600 py-4"
-                >
-                  <Ionicons name="share-social" size={20} color="#fff" />
-                  <Text className="ml-2 font-semibold text-white">
-                    Share Match
-                  </Text>
-                </TouchableOpacity>
+          {/* Friend ID Input Section */}
+          <View className="mt-8">
+            <Text className="text-sm font-semibold text-gray-300 mb-3 ml-1">Friend's ID</Text>
+            <View className="relative">
+              <TextInput
+                className={`w-full bg-gray-800 text-white rounded-xl p-4 pr-12 text-base border ${error ? 'border-red-500' : 'border-transparent'}`}
+                placeholder="Paste friend's UUID here"
+                placeholderTextColor="#6b7280"
+                value={friendId}
+                onChangeText={handleInputChange}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <TouchableOpacity 
+                onPress={handlePaste}
+                className="absolute right-4 top-1/2 -mt-3 p-1"
+              >
+                <Ionicons name="clipboard-outline" size={20} color="#9ca3af" />
+              </TouchableOpacity>
+            </View>
+            {error ? (
+              <Text className="text-xs text-red-400 mt-2 ml-1">{error}</Text>
+            ) : null}
+          </View>
 
-                <View className="h-3" />
-
-                <TouchableOpacity
-                  onPress={resetMatch}
-                  className="flex-row items-center justify-center rounded-full border border-gray-600 py-4"
-                >
-                  <Ionicons name="refresh" size={20} color="#9ca3af" />
-                  <Text className="ml-2 font-semibold text-gray-400">
-                    Find Another Friend
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </>
-          ) : (
-            // Input View
-            <>
-              <View className="mx-6 mt-12 items-center">
-                <View className="h-32 w-32 items-center justify-center rounded-full bg-pink-500/20">
-                  <Ionicons name="people" size={64} color="#ec4899" />
-                </View>
-                <Text className="mt-6 text-center text-xl font-semibold text-white">
-                  Compare Auras with a Friend
-                </Text>
-                <Text className="mt-2 text-center text-gray-400">
-                  Enter your friend's user ID to see your aura compatibility
-                </Text>
-              </View>
-
-              {/* Friend ID Input */}
-              <View className="mx-6 mt-8">
-                <Text className="mb-2 text-sm text-gray-400">Friend's User ID</Text>
-                <TextInput
-                  value={friendId}
-                  onChangeText={setFriendId}
-                  placeholder="e.g., a1b2c3d4-e5f6-..."
-                  placeholderTextColor="#6b7280"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  className="rounded-xl bg-gray-800 px-4 py-4 text-white"
-                />
-              </View>
-
-              {/* Match Button */}
-              <View className="mx-6 mt-6">
-                <TouchableOpacity
-                  onPress={handleMatch}
-                  disabled={isLoading}
-                  className="flex-row items-center justify-center rounded-full bg-pink-600 py-4"
-                >
-                  {isLoading ? (
-                    <Text className="font-semibold text-white">
-                      Calculating...
-                    </Text>
-                  ) : (
-                    <>
-                      <Ionicons name="sparkles" size={20} color="#fff" />
-                      <Text className="ml-2 font-semibold text-white">
-                        Calculate Compatibility
-                      </Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              </View>
-
-              {/* Info Card */}
-              <View className="mx-6 mt-10 rounded-2xl bg-gray-800/50 p-5">
-                <View className="flex-row items-start">
-                  <Ionicons name="information-circle" size={24} color="#8b5cf6" />
-                  <View className="ml-3 flex-1">
-                    <Text className="font-semibold text-violet-300">
-                      How it works
-                    </Text>
-                    <Text className="mt-2 text-sm leading-5 text-gray-300">
-                      Aura compatibility is calculated by comparing your most recent aura
-                      readings. Same colors create deep connections, while complementary
-                      colors balance each other perfectly.
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            </>
-          )}
+          {/* Match Button */}
+          <TouchableOpacity 
+            onPress={handleMatch}
+            disabled={!friendId || isLoading}
+            className={`w-full rounded-2xl py-4 mt-8 flex-row items-center justify-center ${(!friendId || isLoading) ? 'bg-gray-800' : 'bg-violet-600'}`}
+          >
+            <Text className={`text-base font-bold ${(!friendId || isLoading) ? 'text-gray-500' : 'text-white'}`}>
+              Start Matching
+            </Text>
+          </TouchableOpacity>
         </ScrollView>
+
+        {/* Loading Overlay */}
+        {isLoading && (
+          <View className="absolute inset-0 bg-black/80 z-50 flex-col items-center justify-center">
+            <ActivityIndicator size="large" color="#8b5cf6" />
+            <Text className="text-white text-base font-medium mt-4">Analyzing compatibility...</Text>
+          </View>
+        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

@@ -1,80 +1,51 @@
 import React from 'react';
-import {
-  Pressable,
-  Text,
-  ActivityIndicator,
-  type PressableProps,
-} from 'react-native';
-import { cn } from '../../lib/cn';
+import { View, Text, Pressable, ActivityIndicator } from 'react-native';
+import { hapticLight } from '../../lib/haptics';
 
-interface ButtonProps extends PressableProps {
-  title: string;
+interface ButtonProps {
+  onPress: () => void;
+  disabled?: boolean;
   variant?: 'primary' | 'secondary' | 'outline' | 'destructive';
-  size?: 'sm' | 'md' | 'lg';
-  isLoading?: boolean;
+  children: React.ReactNode;
+  className?: string;
 }
 
-const variantStyles = {
-  primary: 'bg-primary-600 active:bg-primary-700',
-  secondary: 'bg-gray-600 active:bg-gray-700',
-  outline: 'border-2 border-primary-600 bg-transparent active:bg-primary-50',
-  destructive: 'bg-red-600 active:bg-red-700',
-};
-
-const variantTextStyles = {
-  primary: 'text-white',
-  secondary: 'text-white',
-  outline: 'text-primary-600',
-  destructive: 'text-white',
-};
-
-const sizeStyles = {
-  sm: 'px-3 py-2',
-  md: 'px-5 py-3',
-  lg: 'px-7 py-4',
-};
-
-const sizeTextStyles = {
-  sm: 'text-sm',
-  md: 'text-base',
-  lg: 'text-lg',
-};
-
 export default function Button({
-  title,
+  onPress,
+  disabled = false,
   variant = 'primary',
-  size = 'md',
-  isLoading = false,
-  disabled,
-  ...props
+  children,
+  className = '',
 }: ButtonProps) {
-  const isDisabled = disabled || isLoading;
+  const handlePress = () => {
+    if (!disabled) {
+      hapticLight();
+      onPress();
+    }
+  };
+
+  const baseStyle = "rounded-xl py-4 flex-row justify-center items-center";
+  const variantStyles: Record<string, string> = {
+    primary: "bg-violet-600 active:bg-violet-700",
+    secondary: "bg-gray-800 active:bg-gray-700",
+    outline: "border border-gray-600 active:bg-gray-800",
+    destructive: "bg-red-600 active:bg-red-700",
+  };
+  const disabledStyle = "opacity-50";
+  const textStyle = "text-white text-base font-semibold";
 
   return (
     <Pressable
-      className={cn(
-        'items-center justify-center rounded-xl',
-        variantStyles[variant],
-        sizeStyles[size],
-        isDisabled && 'opacity-50'
-      )}
-      disabled={isDisabled}
-      {...props}
+      onPress={handlePress}
+      disabled={disabled}
+      className={`${baseStyle} ${variantStyles[variant] || variantStyles.primary} ${disabled ? disabledStyle : ''} ${className}`}
     >
-      {isLoading ? (
-        <ActivityIndicator
-          color={variant === 'outline' ? '#2563eb' : '#ffffff'}
-        />
+      {typeof children === 'string' ? (
+        <Text className={textStyle}>{children}</Text>
       ) : (
-        <Text
-          className={cn(
-            'font-semibold',
-            variantTextStyles[variant],
-            sizeTextStyles[size]
-          )}
-        >
-          {title}
-        </Text>
+        <View className="flex-row justify-center items-center">
+          {children}
+        </View>
       )}
     </Pressable>
   );

@@ -81,18 +81,20 @@ export default function ReportButton({
         <View className="flex-row gap-3">
           <View className="flex-1">
             <Button
-              title="Cancel"
               variant="outline"
               onPress={() => setShowModal(false)}
-            />
+            >
+              Cancel
+            </Button>
           </View>
           <View className="flex-1">
             <Button
-              title="Submit"
               variant="destructive"
               onPress={handleReport}
-              isLoading={isSubmitting}
-            />
+              disabled={isSubmitting}
+            >
+              Submit
+            </Button>
           </View>
         </View>
       </Modal>

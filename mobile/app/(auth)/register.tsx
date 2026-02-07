@@ -1,115 +1,119 @@
 import React, { useState } from 'react';
-import { View, Text, KeyboardAvoidingView, Platform } from 'react-native';
-import { Link } from 'expo-router';
-import { useAuth } from '../../contexts/AuthContext';
-import Button from '../../components/ui/Button';
+import { View, Text, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Pressable } from 'react-native';
+import { useRouter } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import Input from '../../components/ui/Input';
+import Button from '../../components/ui/Button';
+import { useAuth } from '../../contexts/AuthContext';
+import { hapticError, hapticSuccess } from '../../lib/haptics';
 
 export default function RegisterScreen() {
+  const router = useRouter();
   const { register } = useAuth();
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   const handleRegister = async () => {
+    setIsLoading(true);
     setError('');
 
-    if (!email || !password || !confirmPassword) {
-      setError('Please fill in all fields');
+    if (!email || !password) {
+      setError('Please fill in all fields.');
+      setIsLoading(false);
+      hapticError();
       return;
     }
 
     if (password.length < 8) {
-      setError('Password must be at least 8 characters');
+      setError('Password must be at least 8 characters.');
+      setIsLoading(false);
+      hapticError();
       return;
     }
 
-    if (password !== confirmPassword) {
-      setError('Passwords do not match');
-      return;
-    }
-
-    setIsLoading(true);
     try {
       await register(email, password);
+      hapticSuccess();
+      router.replace('/(protected)/home');
     } catch (err: any) {
-      setError(
-        err.response?.data?.message || 'Registration failed. Please try again.'
-      );
-    } finally {
+      hapticError();
+      setError(err.response?.data?.message || 'Registration failed. Please try again.');
       setIsLoading(false);
     }
   };
 
   return (
     <KeyboardAvoidingView
-      className="flex-1 bg-white"
+      className="flex-1 bg-gray-950"
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <View className="flex-1 justify-center px-8">
-        <Text className="mb-2 text-3xl font-bold text-gray-900">
-          Create account
-        </Text>
-        <Text className="mb-8 text-base text-gray-500">
-          Start building something great
-        </Text>
-
-        {error ? (
-          <View className="mb-4 rounded-lg bg-red-50 p-3">
-            <Text className="text-sm text-red-600">{error}</Text>
+      <SafeAreaView className="flex-1">
+        <ScrollView
+          className="flex-1 px-6"
+          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
+        >
+          {/* Logo */}
+          <View className="items-center mb-10">
+            <LinearGradient
+              colors={['#7c3aed', '#ec4899']}
+              className="w-20 h-20 rounded-3xl items-center justify-center mb-4"
+            >
+              <Ionicons name="sparkles" size={36} color="white" />
+            </LinearGradient>
+            <Text className="text-3xl font-bold text-white">AuraSnap</Text>
+            <Text className="text-sm text-gray-400 mt-1">Discover your energy</Text>
           </View>
-        ) : null}
 
-        <View className="mb-4">
-          <Input
-            label="Email"
-            placeholder="you@example.com"
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            textContentType="emailAddress"
-          />
-        </View>
+          <View className="w-full">
+            <Text className="text-xl font-bold text-white mb-1">Create Account</Text>
+            <Text className="text-sm text-gray-400 mb-6">Start your aura journey today</Text>
 
-        <View className="mb-4">
-          <Input
-            label="Password"
-            placeholder="Min. 8 characters"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            textContentType="newPassword"
-          />
-        </View>
+            <Input
+              label="Email"
+              placeholder="email@example.com"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
 
-        <View className="mb-6">
-          <Input
-            label="Confirm Password"
-            placeholder="Repeat your password"
-            value={confirmPassword}
-            onChangeText={setConfirmPassword}
-            secureTextEntry
-            textContentType="newPassword"
-          />
-        </View>
+            <Input
+              label="Password"
+              placeholder="Min 8 characters"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+            />
 
-        <Button
-          title="Create Account"
-          onPress={handleRegister}
-          isLoading={isLoading}
-          size="lg"
-        />
+            {error ? (
+              <View className="bg-red-900/30 rounded-xl p-3 mb-4 border border-red-500/20">
+                <Text className="text-red-400 text-sm">{error}</Text>
+              </View>
+            ) : null}
 
-        <View className="mt-6 flex-row items-center justify-center">
-          <Text className="text-gray-500">Already have an account? </Text>
-          <Link href="/(auth)/login" asChild>
-            <Text className="font-semibold text-primary-600">Sign In</Text>
-          </Link>
-        </View>
-      </View>
+            <Button
+              onPress={handleRegister}
+              disabled={isLoading}
+              variant="primary"
+              className="w-full mb-6"
+            >
+              {isLoading ? <ActivityIndicator size="small" color="#ffffff" /> : 'Create Account'}
+            </Button>
+
+            <View className="flex-row justify-center items-center">
+              <Text className="text-gray-500">Already have an account? </Text>
+              <Pressable onPress={() => router.push('/(auth)/login')}>
+                <Text className="text-violet-400 font-semibold">Sign In</Text>
+              </Pressable>
+            </View>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
     </KeyboardAvoidingView>
   );
 }

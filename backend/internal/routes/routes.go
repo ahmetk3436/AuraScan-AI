@@ -7,65 +7,54 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-func Setup(
-	app *fiber.App,
-	cfg *config.Config,
-	authHandler *handlers.AuthHandler,
-	healthHandler *handlers.HealthHandler,
-	webhookHandler *handlers.WebhookHandler,
-	moderationHandler *handlers.ModerationHandler,
-	auraHandler *handlers.AuraHandler,
-	auraMatchHandler *handlers.AuraMatchHandler,
-	streakHandler *handlers.StreakHandler,
-) {
+// Setup configures all API routes for the application
+func Setup(app *fiber.App, cfg *config.Config, authHandler *handlers.AuthHandler, healthHandler *handlers.HealthHandler, webhookHandler *handlers.WebhookHandler, moderationHandler *handlers.ModerationHandler, auraHandler *handlers.AuraHandler, auraMatchHandler *handlers.AuraMatchHandler, streakHandler *handlers.StreakHandler) {
 	api := app.Group("/api")
 
-	// Health
+	// Health check
 	api.Get("/health", healthHandler.Check)
 
-	// Auth (public)
+	// Public auth routes
 	auth := api.Group("/auth")
 	auth.Post("/register", authHandler.Register)
 	auth.Post("/login", authHandler.Login)
-	auth.Post("/refresh", authHandler.Refresh)
-	auth.Post("/apple", authHandler.AppleSignIn) // Sign in with Apple (Guideline 4.8)
+	auth.Post("/refresh", authHandler.RefreshToken)
+	auth.Post("/apple", authHandler.AppleSignIn)
+
+	// Webhooks (public but auth-header verified)
+	api.Post("/webhooks/revenuecat", webhookHandler.HandleRevenueCat)
+
+	// Protected routes (require JWT)
+	protected := api.Group("", middleware.JWTProtected(cfg))
 
 	// Auth (protected)
-	protected := api.Group("", middleware.JWTProtected(cfg))
 	protected.Post("/auth/logout", authHandler.Logout)
-	protected.Delete("/auth/account", authHandler.DeleteAccount) // Account deletion (Guideline 5.1.1)
+	protected.Delete("/auth/account", authHandler.DeleteAccount)
+	protected.Get("/auth/profile", authHandler.GetProfile)
 
-	// Aura - User endpoints (protected)
+	// Aura routes
 	aura := protected.Group("/aura")
-	aura.Post("/scan", auraHandler.Scan)           // Create new aura reading
-	aura.Get("", auraHandler.GetList)              // List user's aura readings (paginated)
-	aura.Get("/latest", auraHandler.GetLatest)     // Get user's most recent aura
-	aura.Get("/today", auraHandler.GetToday)       // Get today's aura
-	aura.Get("/stats", auraHandler.GetStats)       // Get aura color distribution
-	aura.Get("/:id", auraHandler.GetDetail)        // Get single aura reading
-	aura.Delete("/:id", auraHandler.Delete)        // Soft delete
+	aura.Get("/scan/check", auraHandler.CheckScanEligibility)
+	aura.Post("/scan", auraHandler.Scan)
 
-	// Aura Match - Compatibility endpoints (protected)
-	aura.Post("/match", auraMatchHandler.CreateMatch)            // Calculate compatibility with friend
-	aura.Get("/matches", auraMatchHandler.GetMatches)            // List all matches
-	aura.Get("/match/:friend_id", auraMatchHandler.GetMatchByFriend) // Get match with specific friend
+	// Aura Match routes
+	match := protected.Group("/match")
+	match.Post("", auraMatchHandler.CreateMatch)
+	match.Get("", auraMatchHandler.GetMatches)
+	match.Get("/:friend_id", auraMatchHandler.GetMatchByFriend)
 
-	// Streak - Gamification endpoints (protected)
-	aura.Get("/streak", streakHandler.GetStreak)        // Get user's streak info
-	aura.Post("/streak/update", streakHandler.UpdateStreak) // Update streak after scan
+	// Streak routes
+	streak := protected.Group("/streak")
+	streak.Get("", streakHandler.GetStreak)
+	streak.Post("/update", streakHandler.UpdateStreak)
 
-	// Moderation - User endpoints (protected)
-	protected.Post("/reports", moderationHandler.CreateReport)     // Report content (Guideline 1.2)
-	protected.Post("/blocks", moderationHandler.BlockUser)         // Block user (Guideline 1.2)
-	protected.Delete("/blocks/:id", moderationHandler.UnblockUser) // Unblock user
+	// Moderation routes
+	protected.Post("/reports", moderationHandler.CreateReport)
+	protected.Post("/blocks", moderationHandler.BlockUser)
+	protected.Delete("/blocks/:id", moderationHandler.UnblockUser)
 
-	// Admin moderation panel (protected + admin check)
-	// In production, add an admin role middleware here
-	admin := api.Group("/admin", middleware.JWTProtected(cfg))
+	// Admin routes
+	admin := protected.Group("/admin")
 	admin.Get("/moderation/reports", moderationHandler.ListReports)
 	admin.Put("/moderation/reports/:id", moderationHandler.ActionReport)
-
-	// Webhooks (verified by auth header, not JWT)
-	webhooks := api.Group("/webhooks")
-	webhooks.Post("/revenuecat", webhookHandler.HandleRevenueCat)
 }

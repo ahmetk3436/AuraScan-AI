@@ -1,146 +1,189 @@
-import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  ScrollView,
-  ActivityIndicator,
-  Alert,
-} from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, Pressable, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
-import { useSubscription } from '../../contexts/SubscriptionContext';
-import { PurchasesPackage } from '../../lib/purchases';
-import { hapticSuccess, hapticMedium } from '../../lib/haptics';
+import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
+import Animated, { FadeInDown } from 'react-native-reanimated';
+import Purchases from 'react-native-purchases';
+
+const features = [
+  { title: 'Unlimited Scans', icon: 'sparkles', iconColor: '#8b5cf6', bg: 'bg-violet-500/10' },
+  { title: 'AI Compatibility', icon: 'people', iconColor: '#ec4899', bg: 'bg-pink-500/10' },
+  { title: 'Full History', icon: 'time', iconColor: '#22c55e', bg: 'bg-green-500/10' },
+  { title: 'Rare Aura Colors', icon: 'color-palette', iconColor: '#f59e0b', bg: 'bg-amber-500/10' },
+  { title: 'No Ads', icon: 'eye-off', iconColor: '#3b82f6', bg: 'bg-blue-500/10' },
+  { title: 'Priority Analysis', icon: 'flash', iconColor: '#f97316', bg: 'bg-orange-500/10' },
+];
 
 export default function PaywallScreen() {
-  const { offerings, isLoading, handlePurchase, handleRestore } =
-    useSubscription();
-  const [purchasing, setPurchasing] = useState<string | null>(null);
+  const router = useRouter();
+  const [offerings, setOfferings] = useState<any>(null);
+  const [selectedPkg, setSelectedPkg] = useState<any>(null);
+  const [isPurchasing, setIsPurchasing] = useState(false);
 
-  const handlePackagePurchase = async (pkg: PurchasesPackage) => {
-    setPurchasing(pkg.identifier);
+  useEffect(() => {
+    fetchOfferings();
+  }, []);
+
+  const fetchOfferings = async () => {
     try {
-      const success = await handlePurchase(pkg);
-      if (success) {
-        hapticSuccess();
-        Alert.alert('Success', 'Welcome to AuraSnap Premium!');
-        router.back();
-      } else {
-        Alert.alert('Error', 'Purchase failed. Please try again.');
+      const result = await Purchases.getOfferings();
+      if (result.current) {
+        setOfferings(result.current);
+        const monthly = result.current.availablePackages.find(
+          (p: any) => p.packageType === 'MONTHLY'
+        );
+        setSelectedPkg(monthly || result.current.availablePackages[0]);
+      }
+    } catch (error) {
+      console.error('Error fetching offerings:', error);
+    }
+  };
+
+  const handlePurchase = async () => {
+    if (!selectedPkg) return;
+    setIsPurchasing(true);
+    try {
+      await Purchases.purchasePackage(selectedPkg);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      router.back();
+    } catch (error: any) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      if (!error.userCancelled) {
+        Alert.alert('Purchase Failed', error.message || 'An unknown error occurred');
       }
     } finally {
-      setPurchasing(null);
+      setIsPurchasing(false);
     }
   };
 
-  const handleRestorePurchases = async () => {
-    hapticMedium();
-    const success = await handleRestore();
-    if (success) {
-      hapticSuccess();
-      Alert.alert('Success', 'Premium restored!');
-      router.back();
-    } else {
-      Alert.alert('Not Found', 'No previous purchases found.');
+  const handleRestore = async () => {
+    try {
+      await Purchases.restorePurchases();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert('Success', 'Purchases restored');
+    } catch (error: any) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Restore Failed', error.message);
     }
   };
-
-  if (isLoading) {
-    return (
-      <SafeAreaView className="flex-1 items-center justify-center bg-gray-950">
-        <ActivityIndicator size="large" color="#8b5cf6" />
-      </SafeAreaView>
-    );
-  }
 
   return (
     <SafeAreaView className="flex-1 bg-gray-950">
-      <ScrollView className="flex-1">
+      {/* Close Button */}
+      <Pressable
+        onPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          router.back();
+        }}
+        className="absolute top-14 right-4 z-50 w-8 h-8 rounded-full bg-gray-800/80 items-center justify-center"
+      >
+        <Ionicons name="close" size={18} color="#9ca3af" />
+      </Pressable>
+
+      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
         {/* Header */}
-        <View className="items-center px-6 pb-6 pt-8">
-          <View className="mb-4 h-20 w-20 items-center justify-center rounded-full bg-violet-600/20">
-            <Ionicons name="sparkles" size={40} color="#8b5cf6" />
-          </View>
-          <Text className="mb-2 text-3xl font-bold text-white">
-            AuraSnap Premium
-          </Text>
-          <Text className="text-center text-base text-gray-400">
-            Unlock the full power of your aura
-          </Text>
-        </View>
+        <LinearGradient
+          colors={['#2e1065', '#020617']}
+          className="items-center pt-16 pb-10"
+        >
+          <LinearGradient
+            colors={['#7c3aed', '#ec4899']}
+            className="w-24 h-24 rounded-full items-center justify-center mb-4"
+          >
+            <Ionicons name="sparkles" size={40} color="white" />
+          </LinearGradient>
+          <Text className="text-3xl font-bold text-white text-center">Unlock Your Full Aura</Text>
+          <Text className="text-base text-gray-400 text-center mt-2 px-8">See what your energy reveals</Text>
+        </LinearGradient>
 
         {/* Features */}
-        <View className="px-6 py-6">
-          <Feature icon="infinite" text="Unlimited aura scans" color="#8b5cf6" />
-          <Feature icon="color-palette" text="Unlock rare aura colors" color="#ec4899" />
-          <Feature icon="people" text="Unlimited friend matches" color="#3b82f6" />
-          <Feature icon="analytics" text="Detailed aura reports" color="#22c55e" />
-          <Feature icon="time" text="Full scan history" color="#f59e0b" />
-          <Feature icon="ban" text="No advertisements" color="#ef4444" />
+        <View className="mt-6">
+          {features.map((feature, index) => (
+            <Animated.View
+              key={index}
+              entering={FadeInDown.delay(index * 80).springify()}
+              className="flex-row items-center mx-6 my-1.5 bg-gray-800/50 rounded-xl p-4"
+            >
+              <View className={`h-10 w-10 rounded-full ${feature.bg} items-center justify-center mr-4`}>
+                <Ionicons name={feature.icon as any} size={20} color={feature.iconColor} />
+              </View>
+              <Text className="flex-1 text-white font-medium">{feature.title}</Text>
+              <Ionicons name="checkmark-circle" size={20} color="#22c55e" />
+            </Animated.View>
+          ))}
         </View>
 
         {/* Packages */}
-        {offerings?.availablePackages.map((pkg: PurchasesPackage) => (
-          <TouchableOpacity
-            key={pkg.identifier}
-            className="mx-6 mb-4 flex-row items-center rounded-2xl border border-violet-500/30 bg-gray-800/50 p-5"
-            onPress={() => handlePackagePurchase(pkg)}
-            disabled={purchasing === pkg.identifier}
-            style={purchasing === pkg.identifier ? { opacity: 0.7 } : undefined}
-          >
-            <View className="flex-1">
-              <Text className="mb-1 text-lg font-semibold text-white">
-                {pkg.product.title}
-              </Text>
-              <Text className="mb-2 text-sm text-gray-400">
-                {pkg.product.description}
-              </Text>
-              <Text className="text-2xl font-bold text-violet-400">
-                {pkg.product.priceString}
-              </Text>
-            </View>
-            {purchasing === pkg.identifier && (
-              <ActivityIndicator color="#8b5cf6" style={{ marginLeft: 16 }} />
-            )}
-          </TouchableOpacity>
-        ))}
-
-        {/* Restore */}
-        <TouchableOpacity
-          className="mx-6 mt-2 items-center rounded-xl border border-violet-600 p-4"
-          onPress={handleRestorePurchases}
-        >
-          <Text className="text-base font-semibold text-violet-400">
-            Restore Purchases
+        <View className="mt-8 mb-32">
+          <Text className="text-gray-400 text-xs font-semibold uppercase tracking-widest mx-6 mb-3">
+            Choose Your Plan
           </Text>
-        </TouchableOpacity>
-
-        {/* Footer */}
-        <Text className="mx-6 mb-8 mt-4 text-center text-xs text-gray-500">
-          Subscription automatically renews unless canceled 24 hours before the
-          end of the current period. Cancel anytime in Settings.
-        </Text>
+          {offerings?.availablePackages.map((pkg: any) => (
+            <Pressable
+              key={pkg.identifier}
+              onPress={() => {
+                setSelectedPkg(pkg);
+                Haptics.selectionAsync();
+              }}
+              className={`mx-6 my-2 rounded-2xl border-2 p-5 relative overflow-hidden ${
+                selectedPkg?.identifier === pkg.identifier
+                  ? 'border-violet-500 bg-violet-500/10'
+                  : 'border-gray-700 bg-gray-900'
+              }`}
+            >
+              {pkg.packageType === 'MONTHLY' && (
+                <View className="absolute top-0 right-0 bg-violet-600 px-3 py-1 rounded-bl-xl">
+                  <Text className="text-[10px] font-bold text-white">Most Popular</Text>
+                </View>
+              )}
+              <View className="flex-row justify-between items-center">
+                <View className="flex-1">
+                  <Text className="text-white text-lg font-bold">{pkg.product.title}</Text>
+                  <Text className="text-gray-400 text-sm">{pkg.product.description}</Text>
+                </View>
+                <View className="items-end">
+                  <Text className="text-white text-xl font-bold">{pkg.product.priceString}</Text>
+                  {pkg.packageType === 'ANNUAL' && (
+                    <Text className="text-green-400 text-xs font-semibold mt-1">Save 33%</Text>
+                  )}
+                </View>
+              </View>
+            </Pressable>
+          ))}
+        </View>
       </ScrollView>
-    </SafeAreaView>
-  );
-}
 
-function Feature({ icon, text, color }: { icon: string; text: string; color: string }) {
-  return (
-    <View className="mb-4 flex-row items-center">
-      <View
-        className="h-10 w-10 items-center justify-center rounded-full"
-        style={{ backgroundColor: `${color}20` }}
-      >
-        <Ionicons
-          name={icon as keyof typeof Ionicons.glyphMap}
-          size={20}
-          color={color}
-        />
+      {/* Bottom CTA */}
+      <View className="absolute bottom-0 w-full bg-gray-950/95 border-t border-gray-800/50 p-6 pb-10">
+        <Pressable
+          onPress={handlePurchase}
+          disabled={isPurchasing}
+          className="rounded-full py-4 items-center overflow-hidden"
+        >
+          <LinearGradient
+            colors={['#7c3aed', '#ec4899']}
+            className="absolute inset-0"
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+          />
+          {isPurchasing ? (
+            <ActivityIndicator color="white" />
+          ) : (
+            <Text className="text-white font-bold text-lg">Start Free Trial</Text>
+          )}
+        </Pressable>
+
+        <Pressable onPress={handleRestore} className="mt-3 items-center">
+          <Text className="text-violet-400 text-sm font-medium">Restore Purchases</Text>
+        </Pressable>
+
+        <Text className="text-[10px] text-gray-500 text-center mt-3 leading-4">
+          Cancel anytime. Subscription renews unless cancelled 24h before the end of the current period.
+        </Text>
       </View>
-      <Text className="ml-4 text-base text-gray-300">{text}</Text>
-    </View>
+    </SafeAreaView>
   );
 }
