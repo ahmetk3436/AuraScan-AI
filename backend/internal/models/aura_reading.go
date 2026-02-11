@@ -16,8 +16,8 @@ type AuraReading struct {
 	EnergyLevel    int            `gorm:"type:integer;check:energy_level >= 1 AND energy_level <= 100" json:"energy_level"`
 	MoodScore      int            `gorm:"type:integer;check:mood_score >= 1 AND mood_score <= 10" json:"mood_score"`
 	Personality    string         `gorm:"type:text" json:"personality"`
-	Strengths      []string       `gorm:"type:jsonb" json:"strengths"`
-	Challenges     []string       `gorm:"type:jsonb" json:"challenges"`
+	Strengths      []string       `gorm:"type:jsonb;serializer:json" json:"strengths"`
+	Challenges     []string       `gorm:"type:jsonb;serializer:json" json:"challenges"`
 	DailyAdvice    string         `gorm:"type:text" json:"daily_advice"`
 	AnalyzedAt     time.Time      `gorm:"not null" json:"analyzed_at"`
 	CreatedAt      time.Time      `json:"created_at"`

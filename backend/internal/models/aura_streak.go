@@ -13,7 +13,7 @@ type AuraStreak struct {
 	LongestStreak  int       `gorm:"type:integer;default:0" json:"longest_streak"`
 	TotalScans     int       `gorm:"type:integer;default:0" json:"total_scans"`
 	LastScanDate   time.Time `gorm:"type:date" json:"last_scan_date"`
-	UnlockedColors []string  `gorm:"type:jsonb;default:'[]'" json:"unlocked_colors"`
+	UnlockedColors []string  `gorm:"type:jsonb;serializer:json;default:'[]'" json:"unlocked_colors"`
 	CreatedAt      time.Time `json:"created_at"`
 	UpdatedAt      time.Time `json:"updated_at"`
 }
