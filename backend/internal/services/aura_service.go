@@ -173,8 +173,12 @@ var secondaryColors = []string{"silver", "gold", "white", "black", "grey"}
 
 func (s *AuraService) Create(userID uuid.UUID, req dto.CreateAuraRequest) (*models.AuraReading, error) {
 	imageURL := strings.TrimSpace(req.ImageURL)
+	if imageURL == "" && strings.TrimSpace(req.ImageData) != "" {
+		// Keep a deterministic marker when image data is sent inline.
+		imageURL = "base64_upload"
+	}
 	if imageURL == "" {
-		return nil, errors.New("image_url is required")
+		return nil, errors.New("image_url or image_data is required")
 	}
 
 	analysis := deterministicAuraResult(userID, imageURL)
@@ -207,6 +211,41 @@ func (s *AuraService) Create(userID uuid.UUID, req dto.CreateAuraRequest) (*mode
 	}
 
 	return reading, nil
+}
+
+const auraDailyFreeLimit = 2
+
+func (s *AuraService) IsSubscribed(userID uuid.UUID) bool {
+	var sub models.Subscription
+	err := s.db.
+		Where("user_id = ? AND status = ? AND current_period_end > ?", userID, "active", time.Now()).
+		Order("current_period_end DESC").
+		First(&sub).Error
+	return err == nil
+}
+
+func (s *AuraService) CanScan(userID uuid.UUID, isSubscribed bool) (bool, int, error) {
+	if isSubscribed {
+		return true, -1, nil
+	}
+
+	now := time.Now()
+	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	endOfDay := startOfDay.Add(24 * time.Hour)
+
+	var scansToday int64
+	if err := s.db.Model(&models.AuraReading{}).
+		Where("user_id = ? AND created_at >= ? AND created_at < ?", userID, startOfDay, endOfDay).
+		Count(&scansToday).Error; err != nil {
+		return false, 0, err
+	}
+
+	remaining := auraDailyFreeLimit - int(scansToday)
+	if remaining < 0 {
+		remaining = 0
+	}
+
+	return scansToday < auraDailyFreeLimit, remaining, nil
 }
 
 func deterministicAuraResult(userID uuid.UUID, imageURL string) auraAnalysisResult {
