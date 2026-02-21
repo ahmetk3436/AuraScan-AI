@@ -35,7 +35,8 @@
         "backgroundColor": "#050816"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.ahmetcoskunkizilkaya.aurasnap"
     },
     "web": {
       "favicon": "./assets/favicon.png"
